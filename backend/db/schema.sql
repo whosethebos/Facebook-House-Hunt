@@ -33,3 +33,6 @@ CREATE TABLE IF NOT EXISTS listings (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(search_id, fb_post_url)
 );
+
+CREATE INDEX IF NOT EXISTS idx_searches_created_at ON searches(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_listings_search_score ON listings(search_id, match_score DESC);

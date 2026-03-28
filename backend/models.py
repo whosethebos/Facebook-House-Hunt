@@ -1,6 +1,6 @@
 # backend/models.py
 from pydantic import BaseModel
-from typing import Any
+from datetime import datetime
 
 
 class ParseCriteriaRequest(BaseModel):
@@ -36,7 +36,7 @@ class SearchResponse(BaseModel):
     preferences: str | None
     raw_description: str | None
     status: str
-    created_at: Any
+    created_at: datetime
     listing_count: int = 0
     top_score: int | None = None
 
@@ -47,7 +47,7 @@ class ListingResponse(BaseModel):
     fb_post_url: str
     group_name: str | None
     poster_name: str | None
-    posted_at: Any
+    posted_at: datetime | None
     raw_text: str | None
     image_urls: list[str]
     extracted_rent: int | None
@@ -57,7 +57,7 @@ class ListingResponse(BaseModel):
     summary: str | None
     match_score: int | None
     score_breakdown: dict | None
-    created_at: Any
+    created_at: datetime
 
 
 class SearchWithListings(BaseModel):
