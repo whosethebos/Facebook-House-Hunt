@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.env
+.next/
+node_modules/
+dist/
+.facebook-profile/
