@@ -7,3 +7,5 @@ __pycache__/
 node_modules/
 dist/
 .facebook-profile/
+backend/session/fb_session.json
+backend/.env
