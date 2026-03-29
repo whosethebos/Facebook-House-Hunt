@@ -16,7 +16,6 @@ export default function ResultsPage() {
 
   const { statusMessages, listings: streamedListings, completeEvent, errorEvent, isConnected, isDone } = useSSE(id);
 
-  // Load existing search data on mount
   useEffect(() => {
     getSearch(id).then(({ search: s, listings: l }) => {
       setSearch(s);
@@ -31,13 +30,12 @@ export default function ResultsPage() {
     setIsExtending(true);
     try {
       await extendSearch(id);
-      window.location.reload(); // reconnect SSE
+      window.location.reload();
     } catch {
       setIsExtending(false);
     }
   };
 
-  // Merge streamed listings with stored listings (SSE takes priority for active searches)
   const displayListings: Listing[] =
     search?.status === "running" || streamedListings.length > 0
       ? (streamedListings as unknown as Listing[])
@@ -45,14 +43,27 @@ export default function ResultsPage() {
 
   if (!search) {
     return (
-      <div className="text-slate-400 text-center py-16 animate-pulse">Loading search...</div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "100px 0", gap: 12 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: "50%",
+          border: "2px solid var(--border)",
+          borderTopColor: "var(--accent)",
+          animation: "spinSlow 0.85s linear infinite",
+        }} />
+        <span style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading…</span>
+      </div>
     );
   }
 
+  const isRunning = search.status === "running" && !isDone;
+  const headingText = displayListings.length > 0
+    ? `${displayListings.length} listing${displayListings.length !== 1 ? "s" : ""} found`
+    : isRunning ? "Searching…" : "No listings found";
+
   return (
-    <div className="flex gap-6 items-start">
+    <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }} className="animate-fade-in">
       {/* Sidebar */}
-      <div className="w-64 flex-shrink-0">
+      <div style={{ width: 256, flexShrink: 0 }}>
         <AgentStatusPanel
           messages={statusMessages}
           isConnected={isConnected}
@@ -69,53 +80,76 @@ export default function ResultsPage() {
         />
       </div>
 
-      {/* Main results area */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-100">
-              {displayListings.length > 0
-                ? `${displayListings.length} listings found`
-                : search.status === "running" ? "Searching..." : "No matching listings"}
-            </h1>
-            {completeEvent && (
-              <p className="text-slate-400 text-sm mt-0.5">
-                {completeEvent.data.high_match} strong matches (≥75%)
-              </p>
-            )}
-          </div>
+      {/* Main content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Results header */}
+        <div style={{ marginBottom: 20 }}>
+          <h1 style={{
+            fontFamily: "var(--font-display, DM Serif Display), Georgia, serif",
+            fontSize: 28,
+            fontWeight: 400,
+            color: "var(--text)",
+            letterSpacing: "-0.03em",
+            margin: "0 0 4px",
+          }}>
+            {headingText}
+          </h1>
+          {completeEvent && (
+            <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>
+              <span style={{ color: "var(--success)" }}>{completeEvent.data.high_match}</span> strong matches (≥ 75% score)
+            </p>
+          )}
         </div>
 
+        {/* Error banner */}
         {errorEvent && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">
-            ⚠️ {errorEvent.data.message}
+          <div style={{
+            background: "var(--error-bg)",
+            border: "1px solid rgba(248,113,113,0.3)",
+            color: "var(--error)",
+            borderRadius: "var(--radius-sm)",
+            padding: "12px 16px",
+            marginBottom: 16,
+            fontSize: 13,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}>
+            <span>⚠</span> {errorEvent.data.message}
           </div>
         )}
 
-        {displayListings.length === 0 && search.status !== "running" ? (
-          <div className="text-center py-16 border border-dashed border-slate-700 rounded-2xl">
-            <div className="text-4xl mb-3">😕</div>
-            <p className="text-slate-300 font-medium mb-1">No matching listings found</p>
-            <p className="text-slate-500 text-sm mb-5">Try extending the search to find more results</p>
-            {!isExtending ? (
-              <button
-                onClick={handleExtend}
-                className="bg-sky-500 hover:bg-sky-600 text-white px-5 py-2 rounded-lg font-medium transition-colors text-sm"
-              >
-                🔍 Extend Search
-              </button>
+        {/* Listings or empty state */}
+        {displayListings.length === 0 && !isRunning ? (
+          <div className="empty-state" style={{ textAlign: "center", padding: "60px 32px" }}>
+            <div style={{ fontSize: 40, marginBottom: 16, opacity: 0.5 }}>🔍</div>
+            <p style={{ color: "var(--text)", fontWeight: 500, marginBottom: 6 }}>No matching listings found</p>
+            <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 24 }}>
+              Try extending the search to cover more Facebook groups
+            </p>
+            {isExtending ? (
+              <p style={{ color: "var(--text-muted)", fontSize: 13 }} className="animate-glow-pulse">Extending search…</p>
             ) : (
-              <p className="text-slate-400 text-sm animate-pulse">Extending search...</p>
+              <button className="btn-primary" onClick={handleExtend} style={{ fontSize: 13, padding: "9px 20px" }}>
+                Extend Search
+              </button>
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {displayListings.map((listing) => (
-              <ListingCard key={listing.id ?? listing.fb_post_url} listing={listing} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {displayListings.map((listing, i) => (
+              <ListingCard key={listing.id ?? listing.fb_post_url} listing={listing} index={i} />
             ))}
-            {(search.status === "running" && !isDone) && (
-              <div className="border border-dashed border-slate-700 rounded-xl p-4 text-center">
-                <p className="text-slate-500 text-sm animate-pulse">⟳ Searching more groups...</p>
+            {isRunning && (
+              <div style={{
+                border: "1px dashed rgba(129,140,248,0.2)",
+                borderRadius: "var(--radius)",
+                padding: "16px",
+                textAlign: "center",
+              }}>
+                <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }} className="animate-glow-pulse">
+                  Scanning more groups…
+                </p>
               </div>
             )}
           </div>

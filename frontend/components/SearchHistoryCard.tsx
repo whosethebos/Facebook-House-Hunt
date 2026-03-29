@@ -2,64 +2,125 @@
 import type { Search } from "@/lib/api";
 import Link from "next/link";
 
-const STATUS_COLORS: Record<string, string> = {
-  running: "bg-yellow-500/20 text-yellow-400",
-  completed: "bg-green-500/20 text-green-400",
-  failed: "bg-red-500/20 text-red-400",
-};
-
-function scoreColor(score: number | null | undefined): string {
-  if (!score) return "text-slate-400";
-  if (score >= 75) return "text-green-400";
-  if (score >= 50) return "text-yellow-400";
-  return "text-red-400";
+function statusBadgeStyle(status: string): { bg: string; color: string; dot: string } {
+  switch (status) {
+    case "running":   return { bg: "var(--warning-bg)",  color: "var(--warning)",  dot: "var(--warning)" };
+    case "completed": return { bg: "var(--success-bg)",  color: "var(--success)",  dot: "var(--success)" };
+    case "failed":    return { bg: "var(--error-bg)",    color: "var(--error)",    dot: "var(--error)" };
+    default:          return { bg: "rgba(129,140,248,0.1)", color: "var(--accent)", dot: "var(--accent)" };
+  }
 }
 
-export function SearchHistoryCard({ search }: { search: Search }) {
-  const statusClass = STATUS_COLORS[search.status] ?? "bg-slate-700 text-slate-300";
+function scoreColor(score: number | null | undefined): string {
+  if (!score) return "var(--text-muted)";
+  if (score >= 75) return "var(--success)";
+  if (score >= 50) return "var(--warning)";
+  return "var(--error)";
+}
+
+export function SearchHistoryCard({ search, index = 0 }: { search: Search; index?: number }) {
+  const { bg, color, dot } = statusBadgeStyle(search.status);
   const date = new Date(search.created_at).toLocaleDateString("en-IN", {
     day: "numeric", month: "short", year: "numeric",
   });
+  const delay = Math.min(index, 5);
 
   return (
-    <Link href={`/search/${search.id}`}>
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-sky-500/50 hover:bg-slate-800/60 transition-all cursor-pointer group">
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <h3 className="font-semibold text-slate-100 group-hover:text-sky-400 transition-colors">
-              📍 {search.city}
+    <Link href={`/search/${search.id}`} style={{ textDecoration: "none" }}>
+      <article
+        className={`card animate-fade-up stagger-${delay}`}
+        style={{ padding: "18px 20px", cursor: "pointer", display: "block" }}
+      >
+        {/* Top row */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12, gap: 8 }}>
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{
+              fontFamily: "var(--font-display, DM Serif Display), Georgia, serif",
+              fontSize: 17,
+              fontWeight: 400,
+              color: "var(--text)",
+              margin: "0 0 3px",
+              letterSpacing: "-0.02em",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}>
+              {search.city}
             </h3>
             {search.areas.length > 0 && (
-              <p className="text-sm text-slate-400 mt-0.5">
-                {search.areas.join(", ")}
+              <p style={{ color: "var(--text-muted)", fontSize: 12, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {search.areas.join(" · ")}
               </p>
             )}
           </div>
-          <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusClass}`}>
+          {/* Status badge */}
+          <span style={{
+            background: bg, color, borderRadius: 100,
+            fontSize: 11, fontWeight: 600, padding: "3px 10px",
+            display: "flex", alignItems: "center", gap: 5,
+            whiteSpace: "nowrap", flexShrink: 0,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, display: "inline-block", flexShrink: 0 }} />
             {search.status}
           </span>
         </div>
 
-        <div className="flex items-center gap-4 text-sm text-slate-400 mb-3">
-          {search.property_type && <span>🏠 {search.property_type}</span>}
-          {search.budget_max && <span>₹ {search.budget_max.toLocaleString("en-IN")}/mo</span>}
-          {search.furnishing && <span>✨ {search.furnishing}</span>}
-        </div>
+        {/* Tags row */}
+        {(search.property_type || search.budget_max || search.furnishing) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {search.property_type && (
+              <span style={{
+                background: "rgba(129,140,248,0.08)",
+                border: "1px solid rgba(129,140,248,0.15)",
+                color: "var(--accent)",
+                fontSize: 11, fontWeight: 500,
+                padding: "2px 9px", borderRadius: 100,
+              }}>
+                {search.property_type}
+              </span>
+            )}
+            {search.budget_max && (
+              <span style={{
+                background: "rgba(52,211,153,0.08)",
+                border: "1px solid rgba(52,211,153,0.15)",
+                color: "var(--success)",
+                fontSize: 11, fontWeight: 500,
+                padding: "2px 9px", borderRadius: 100,
+              }}>
+                ₹{search.budget_max.toLocaleString("en-IN")}/mo
+              </span>
+            )}
+            {search.furnishing && (
+              <span style={{
+                background: "rgba(251,191,36,0.08)",
+                border: "1px solid rgba(251,191,36,0.15)",
+                color: "var(--warning)",
+                fontSize: 11, fontWeight: 500,
+                padding: "2px 9px", borderRadius: 100,
+              }}>
+                {search.furnishing}
+              </span>
+            )}
+          </div>
+        )}
 
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500">{date}</span>
-          <div className="flex items-center gap-3">
+        {/* Footer */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ color: "var(--text-dim)", fontSize: 12 }}>{date}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {search.listing_count !== undefined && (
-              <span className="text-slate-400">{search.listing_count} listings</span>
+              <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                {search.listing_count} listing{search.listing_count !== 1 ? "s" : ""}
+              </span>
             )}
             {search.top_score != null && (
-              <span className={`font-bold ${scoreColor(search.top_score)}`}>
-                Top: {search.top_score}%
+              <span style={{ color: scoreColor(search.top_score), fontWeight: 700, fontSize: 13 }}>
+                {search.top_score}%
               </span>
             )}
           </div>
         </div>
-      </div>
+      </article>
     </Link>
   );
 }
