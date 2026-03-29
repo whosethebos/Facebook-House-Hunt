@@ -1,5 +1,6 @@
 # backend/agents/analyst_agent.py
 import asyncio
+from typing import ClassVar
 from google.adk.agents import BaseAgent
 from llm.analyze import analyze_post
 from db import postgres_client as db
@@ -8,7 +9,7 @@ from db import postgres_client as db
 class AnalystAgent(BaseAgent):
     """Scores each post with Ollama and stores qualifying listings in DB."""
 
-    DISCARD_THRESHOLD = 40  # posts scoring below this are not stored
+    DISCARD_THRESHOLD: ClassVar[int] = 40  # posts scoring below this are not stored
 
     def __init__(self):
         super().__init__(
