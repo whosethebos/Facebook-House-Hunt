@@ -20,76 +20,126 @@ export function AgentStatusPanel({ messages, isConnected, isDone, listingCount, 
   const latestMessage = messages[messages.length - 1] ?? null;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4 sticky top-4">
-      {/* Search criteria summary */}
+    <div
+      className="card"
+      style={{ padding: "18px 16px", display: "flex", flexDirection: "column", gap: 18, position: "sticky", top: 20 }}
+    >
+      {/* Search criteria */}
       <div>
-        <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">Search</p>
-        <div className="space-y-1 text-sm">
-          <div className="flex items-center gap-1.5 text-slate-200">
-            <span>📍</span>
-            <span className="font-medium">{search.city}</span>
+        <p className="label" style={{ marginBottom: 10 }}>Search Criteria</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {/* City */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14 }}>📍</span>
+            <span style={{ fontWeight: 600, color: "var(--text)", fontSize: 14 }}>{search.city}</span>
           </div>
+          {/* Areas */}
           {search.areas.length > 0 && (
-            <div className="text-slate-400 text-xs pl-5">{search.areas.join(", ")}</div>
+            <p style={{ color: "var(--text-muted)", fontSize: 12, margin: 0, paddingLeft: 22 }}>
+              {search.areas.join(" · ")}
+            </p>
           )}
-          {search.property_type && (
-            <div className="text-slate-400 text-xs pl-5">🏠 {search.property_type}</div>
-          )}
-          {search.budget_max && (
-            <div className="text-slate-400 text-xs pl-5">₹ {search.budget_max.toLocaleString("en-IN")}/mo max</div>
-          )}
-          {search.furnishing && (
-            <div className="text-slate-400 text-xs pl-5">✨ {search.furnishing}</div>
-          )}
+          {/* Tags */}
+          <div style={{ paddingLeft: 22, display: "flex", flexWrap: "wrap", gap: 5, marginTop: 2 }}>
+            {search.property_type && (
+              <span style={{
+                background: "rgba(129,140,248,0.08)", border: "1px solid var(--border)",
+                color: "var(--accent)", fontSize: 11, fontWeight: 500,
+                padding: "2px 8px", borderRadius: 100,
+              }}>{search.property_type}</span>
+            )}
+            {search.budget_max && (
+              <span style={{
+                background: "var(--success-bg)", border: "1px solid rgba(52,211,153,0.15)",
+                color: "var(--success)", fontSize: 11, fontWeight: 500,
+                padding: "2px 8px", borderRadius: 100,
+              }}>₹{search.budget_max.toLocaleString("en-IN")}/mo</span>
+            )}
+            {search.furnishing && (
+              <span style={{
+                background: "var(--warning-bg)", border: "1px solid rgba(251,191,36,0.15)",
+                color: "var(--warning)", fontSize: 11, fontWeight: 500,
+                padding: "2px 8px", borderRadius: 100,
+              }}>{search.furnishing}</span>
+            )}
+          </div>
         </div>
       </div>
+
+      <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: 0 }} />
 
       {/* Live status */}
       {!isDone && (
-        <div className="bg-slate-800 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-2">
-            {isConnected ? (
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            ) : (
-              <div className="w-2 h-2 rounded-full bg-slate-500" />
-            )}
-            <span className="text-xs font-medium text-slate-300">
-              {isConnected ? "Agent running..." : "Connecting..."}
+        <div style={{
+          background: "rgba(0,0,0,0.25)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-sm)",
+          padding: "10px 12px",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: latestMessage ? 8 : 0 }}>
+            <span
+              className={isConnected ? "dot dot-running" : "dot dot-idle"}
+            />
+            <span style={{ color: "var(--text-sub)", fontSize: 12, fontWeight: 500 }}>
+              {isConnected ? "Agent running…" : "Connecting…"}
             </span>
           </div>
           {latestMessage && (
-            <p className="text-xs text-slate-400 leading-relaxed">{latestMessage}</p>
+            <p style={{ color: "var(--text-muted)", fontSize: 11, margin: 0, lineHeight: 1.5, fontFamily: "ui-monospace, monospace" }}>
+              {latestMessage}
+            </p>
           )}
         </div>
       )}
 
-      {/* Results summary */}
-      <div className="border-t border-slate-800 pt-3">
-        <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Results</p>
-        <p className="text-2xl font-bold text-slate-100">{listingCount}</p>
-        <p className="text-xs text-slate-500">matching listings found</p>
-      </div>
-
-      {/* Extend search */}
-      {isDone && onExtend && (
-        <button
-          onClick={onExtend}
-          className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm py-2 rounded-lg transition-colors border border-slate-700"
-        >
-          🔍 Extend Search
-        </button>
+      {isDone && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="dot dot-done" />
+          <span style={{ color: "var(--success)", fontSize: 12, fontWeight: 500 }}>Search complete</span>
+        </div>
       )}
 
-      {/* Recent log */}
+      {/* Results count */}
+      <div>
+        <p className="label" style={{ marginBottom: 6 }}>Results</p>
+        <p style={{
+          fontFamily: "var(--font-display, DM Serif Display), Georgia, serif",
+          fontSize: 36, fontWeight: 400, color: "var(--text)",
+          letterSpacing: "-0.04em", margin: "0 0 2px",
+          lineHeight: 1,
+        }}>
+          {listingCount}
+        </p>
+        <p style={{ color: "var(--text-muted)", fontSize: 12, margin: 0 }}>matching listings</p>
+      </div>
+
+      {/* Extend button */}
+      {isDone && onExtend && (
+        <>
+          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: 0 }} />
+          <button
+            onClick={onExtend}
+            className="btn-ghost"
+            style={{ width: "100%", justifyContent: "center", fontSize: 13, padding: "8px 0" }}
+          >
+            Extend Search
+          </button>
+        </>
+      )}
+
+      {/* Activity log */}
       {messages.length > 1 && (
-        <div>
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Log</p>
-          <div className="space-y-1 max-h-40 overflow-y-auto">
-            {[...messages].reverse().slice(0, 20).map((msg, i) => (
-              <p key={i} className="text-xs text-slate-500 leading-relaxed">{msg}</p>
-            ))}
+        <>
+          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: 0 }} />
+          <div>
+            <p className="label" style={{ marginBottom: 8 }}>Activity Log</p>
+            <div className="terminal" style={{ maxHeight: 140 }}>
+              {[...messages].reverse().slice(0, 20).map((msg, i) => (
+                <span key={i} className="log-line">{msg}</span>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

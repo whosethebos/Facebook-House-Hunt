@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { listSearches, type Search } from "@/lib/api";
+import { listSearches, deleteSearch, type Search } from "@/lib/api";
 import { SearchHistoryCard } from "@/components/SearchHistoryCard";
 
 export default function Dashboard() {
@@ -15,6 +15,15 @@ export default function Dashboard() {
       .catch(() => setSearches([]))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteSearch(id);
+      setSearches(prev => prev.filter(s => s.id !== id));
+    } catch {
+      // silently ignore — card stays in place
+    }
+  };
 
   return (
     <div className="animate-fade-in">
@@ -84,7 +93,7 @@ export default function Dashboard() {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
           {searches.map((s, i) => (
-            <SearchHistoryCard key={s.id} search={s} index={i} />
+            <SearchHistoryCard key={s.id} search={s} index={i} onDelete={handleDelete} />
           ))}
         </div>
       )}

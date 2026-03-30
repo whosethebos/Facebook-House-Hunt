@@ -76,6 +76,11 @@ export async function createSearch(criteria: Omit<ParsedCriteria, never> & { raw
   return res.json();
 }
 
+export async function deleteSearch(id: string): Promise<void> {
+  const res = await fetch(`${API}/searches/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete search");
+}
+
 export async function extendSearch(id: string): Promise<void> {
   const res = await fetch(`${API}/searches/${id}/extend`, { method: "POST" });
   if (!res.ok) throw new Error("Failed to extend search");

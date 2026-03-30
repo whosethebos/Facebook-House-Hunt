@@ -1,4 +1,6 @@
 // frontend/components/SearchHistoryCard.tsx
+"use client";
+import { useState } from "react";
 import type { Search } from "@/lib/api";
 import Link from "next/link";
 
@@ -18,12 +20,26 @@ function scoreColor(score: number | null | undefined): string {
   return "var(--error)";
 }
 
-export function SearchHistoryCard({ search, index = 0 }: { search: Search; index?: number }) {
+export function SearchHistoryCard({ search, index = 0, onDelete }: { search: Search; index?: number; onDelete?: (id: string) => void }) {
   const { bg, color, dot } = statusBadgeStyle(search.status);
+  const [confirming, setConfirming] = useState(false);
   const date = new Date(search.created_at).toLocaleDateString("en-IN", {
     day: "numeric", month: "short", year: "numeric",
   });
   const delay = Math.min(index, 5);
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirming) { setConfirming(true); return; }
+    onDelete?.(search.id);
+  };
+
+  const handleCancelDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setConfirming(false);
+  };
 
   return (
     <Link href={`/search/${search.id}`} style={{ textDecoration: "none" }}>
@@ -53,16 +69,61 @@ export function SearchHistoryCard({ search, index = 0 }: { search: Search; index
               </p>
             )}
           </div>
-          {/* Status badge */}
-          <span style={{
-            background: bg, color, borderRadius: 100,
-            fontSize: 11, fontWeight: 600, padding: "3px 10px",
-            display: "flex", alignItems: "center", gap: 5,
-            whiteSpace: "nowrap", flexShrink: 0,
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, display: "inline-block", flexShrink: 0 }} />
-            {search.status}
-          </span>
+          {/* Right side: status + delete */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            <span style={{
+              background: bg, color, borderRadius: 100,
+              fontSize: 11, fontWeight: 600, padding: "3px 10px",
+              display: "flex", alignItems: "center", gap: 5,
+              whiteSpace: "nowrap",
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, display: "inline-block", flexShrink: 0 }} />
+              {search.status}
+            </span>
+            {onDelete && (
+              confirming ? (
+                <>
+                  <button
+                    onClick={handleDelete}
+                    title="Confirm delete"
+                    style={{
+                      background: "var(--error-bg)", border: "1px solid rgba(248,113,113,0.4)",
+                      color: "var(--error)", borderRadius: 6, padding: "3px 8px",
+                      fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={handleCancelDelete}
+                    title="Cancel"
+                    style={{
+                      background: "transparent", border: "1px solid var(--border)",
+                      color: "var(--text-muted)", borderRadius: 6, padding: "3px 8px",
+                      fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleDelete}
+                  title="Delete search"
+                  style={{
+                    background: "transparent", border: "none",
+                    color: "var(--text-dim)", cursor: "pointer",
+                    padding: "3px 5px", borderRadius: 5, fontSize: 14, lineHeight: 1,
+                    transition: "color 0.15s ease",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = "var(--error)")}
+                  onMouseLeave={e => (e.currentTarget.style.color = "var(--text-dim)")}
+                >
+                  ✕
+                </button>
+              )
+            )}
+          </div>
         </div>
 
         {/* Tags row */}
