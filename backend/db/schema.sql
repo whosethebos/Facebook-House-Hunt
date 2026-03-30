@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS searches (
     preferences TEXT,
     raw_description TEXT,
     status TEXT NOT NULL DEFAULT 'running',
+    group_urls TEXT[] NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS listings (
     summary TEXT,
     match_score INT,
     score_breakdown JSONB,
+    is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(search_id, fb_post_url)
 );
