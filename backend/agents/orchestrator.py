@@ -1,6 +1,7 @@
 # backend/agents/orchestrator.py
 import asyncio
 from collections.abc import AsyncGenerator
+from pydantic import ConfigDict, PrivateAttr
 from google.adk.agents import BaseAgent
 from playwright.async_api import async_playwright
 from scraper.session import get_context, invalidate_session, save_session
@@ -14,24 +15,45 @@ from db import postgres_client as db
 class OrchestratorAgent(BaseAgent):
     """Coordinates the full house hunt pipeline."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # Declared as Pydantic fields so BaseAgent (Pydantic model) allows them
+    search_id: str
+    city: str
+    areas: list[str]
+    budget_max: int | None
+    property_type: str | None
+    furnishing: str | None
+    preferences: str | None
+
+    # Private attributes — not part of the Pydantic schema
+    _queue: asyncio.Queue = PrivateAttr()
+    _done: bool = PrivateAttr(default=False)
+    _group_discovery: GroupDiscoveryAgent = PrivateAttr()
+    _scraper: ScraperAgent = PrivateAttr()
+    _analyst: AnalystAgent = PrivateAttr()
+    _ranker: RankerAgent = PrivateAttr()
+
     def __init__(self, search_id: str, city: str, areas: list[str],
                  budget_max: int | None, property_type: str | None,
                  furnishing: str | None, preferences: str | None):
-        super().__init__(name="orchestrator_agent", description="Coordinates the pipeline")
-        self.search_id = search_id
-        self.city = city
-        self.areas = areas
-        self.budget_max = budget_max
-        self.property_type = property_type
-        self.furnishing = furnishing
-        self.preferences = preferences
-        self._queue: asyncio.Queue = asyncio.Queue()
+        super().__init__(
+            name="orchestrator_agent",
+            description="Coordinates the pipeline",
+            search_id=search_id,
+            city=city,
+            areas=areas,
+            budget_max=budget_max,
+            property_type=property_type,
+            furnishing=furnishing,
+            preferences=preferences,
+        )
+        self._queue = asyncio.Queue()
         self._done = False
-
-        self.group_discovery = GroupDiscoveryAgent()
-        self.scraper = ScraperAgent()
-        self.analyst = AnalystAgent()
-        self.ranker = RankerAgent()
+        self._group_discovery = GroupDiscoveryAgent()
+        self._scraper = ScraperAgent()
+        self._analyst = AnalystAgent()
+        self._ranker = RankerAgent()
 
     async def run(self, extend: bool = False, extend_offset: int = 0) -> None:
         """Run the full pipeline. Called as a background task."""
@@ -50,7 +72,7 @@ class OrchestratorAgent(BaseAgent):
 
                 try:
                     # Step 1: Discover groups
-                    groups = await self.group_discovery.discover(
+                    groups = await self._group_discovery.discover(
                         context, self.city, self._queue,
                         extend_offset=extend_offset, max_groups=8,
                     )
@@ -63,12 +85,12 @@ class OrchestratorAgent(BaseAgent):
                         return
 
                     # Step 2: Scrape posts
-                    posts = await self.scraper.scrape(
+                    posts = await self._scraper.scrape(
                         context, groups, self.areas, self._queue
                     )
 
                     # Step 3: Analyse posts + store listings
-                    stored = await self.analyst.analyse(
+                    await self._analyst.analyse(
                         posts=posts,
                         search_id=self.search_id,
                         city=self.city,
@@ -99,9 +121,7 @@ class OrchestratorAgent(BaseAgent):
                     await db.update_search_status(self.search_id, "failed")
                     return
 
-            # Step 5: Finalise — count high-match results from DB (no re-streaming)
-            # Note: RankerAgent.rank_and_stream() is used only by the SSE reconnect path
-            # (when a client connects after the search is already complete).
+            # Step 5: Finalise
             listings = await db.list_listings(self.search_id)
             total = len(listings)
             high_match = sum(1 for l in listings if (l.get("match_score") or 0) >= 75)

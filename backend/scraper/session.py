@@ -57,8 +57,12 @@ async def login_and_save(playwright) -> BrowserContext:
         raise ValueError("FB_EMAIL and FB_PASSWORD must be set in .env")
 
     browser = await playwright.chromium.launch(
-        headless=True,
-        args=["--no-sandbox", "--disable-setuid-sandbox"],
+        headless=False,
+        args=[
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-blink-features=AutomationControlled",
+        ],
     )
     context = await browser.new_context(
         viewport={"width": 1280, "height": 800},
@@ -69,11 +73,26 @@ async def login_and_save(playwright) -> BrowserContext:
         ),
     )
     page = await context.new_page()
-    await page.goto("https://www.facebook.com/login", wait_until="networkidle")
-    await page.fill("#email", settings.fb_email)
-    await page.fill("#pass", settings.fb_password)
-    await page.click("[name='login']")
-    await page.wait_for_url("https://www.facebook.com/", timeout=15000)
+    # Hide webdriver property to avoid bot detection
+    await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    await page.goto("https://www.facebook.com/login", wait_until="domcontentloaded", timeout=30000)
+    # Dismiss cookie consent dialog if present (EU/GDPR regions)
+    try:
+        cookie_btn = await page.wait_for_selector(
+            "[data-testid='cookie-policy-manage-dialog-accept-button'], "
+            "[aria-label='Allow all cookies'], "
+            "button[title='Allow all cookies']",
+            timeout=5000,
+        )
+        await cookie_btn.click()
+        await page.wait_for_timeout(1000)
+    except Exception:
+        pass  # No cookie dialog, proceed
+    await page.wait_for_selector("[name='email']", timeout=30000)
+    await page.fill("[name='email']", settings.fb_email)
+    await page.fill("[name='pass']", settings.fb_password)
+    await page.click("[role='button'][aria-label='Log in']")
+    await page.wait_for_url("https://www.facebook.com/", timeout=30000)
     await save_session(context)
     return context
 

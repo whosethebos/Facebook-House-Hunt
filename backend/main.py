@@ -65,6 +65,14 @@ async def get_search(search_id: str):
     return {"search": search, "listings": listings}
 
 
+@app.delete("/searches/{search_id}", status_code=204)
+async def delete_search(search_id: str):
+    """Delete a search and all its listings."""
+    found = await db.delete_search(search_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Search not found")
+
+
 @app.post("/searches")
 async def create_search(req: CreateSearchRequest, background_tasks: BackgroundTasks):
     """Create a new search and start the agent pipeline."""

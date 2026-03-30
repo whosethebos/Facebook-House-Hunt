@@ -54,6 +54,13 @@ async def list_searches() -> list[dict]:
         return _rows(await cur.fetchall())
 
 
+async def delete_search(search_id: str) -> bool:
+    """Delete a search and its listings (cascade). Returns True if found."""
+    async with get_pool().connection() as conn:
+        cur = await conn.execute("DELETE FROM searches WHERE id = %s", (search_id,))
+        return cur.rowcount > 0
+
+
 async def update_search_status(search_id: str, status: str) -> None:
     async with get_pool().connection() as conn:
         await conn.execute(
