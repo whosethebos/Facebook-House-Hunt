@@ -114,3 +114,29 @@ async def list_listings(search_id: str) -> list[dict]:
             (search_id,),
         )
         return _rows(await cur.fetchall())
+
+
+async def save_group_urls(search_id: str, urls: list[str]) -> None:
+    async with get_pool().connection() as conn:
+        await conn.execute(
+            "UPDATE searches SET group_urls = %s WHERE id = %s",
+            (urls, search_id),
+        )
+
+
+async def delete_unpinned_listings(search_id: str) -> None:
+    async with get_pool().connection() as conn:
+        await conn.execute(
+            "DELETE FROM listings WHERE search_id = %s AND is_pinned = FALSE",
+            (search_id,),
+        )
+
+
+async def toggle_pin(listing_id: str) -> dict | None:
+    async with get_pool().connection() as conn:
+        cur = await conn.execute(
+            "UPDATE listings SET is_pinned = NOT is_pinned WHERE id = %s RETURNING *",
+            (listing_id,),
+        )
+        row = await cur.fetchone()
+        return _row(row) if row else None
