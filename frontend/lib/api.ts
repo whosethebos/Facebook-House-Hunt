@@ -23,6 +23,7 @@ export interface Search {
   created_at: string;
   listing_count?: number;
   top_score?: number | null;
+  group_urls: string[];
 }
 
 export interface Listing {
@@ -41,6 +42,7 @@ export interface Listing {
   summary: string | null;
   match_score: number | null;
   score_breakdown: Record<string, number> | null;
+  is_pinned: boolean;
   created_at: string;
 }
 
@@ -84,4 +86,15 @@ export async function deleteSearch(id: string): Promise<void> {
 export async function extendSearch(id: string): Promise<void> {
   const res = await fetch(`${API}/searches/${id}/extend`, { method: "POST" });
   if (!res.ok) throw new Error("Failed to extend search");
+}
+
+export async function refreshSearch(id: string): Promise<void> {
+  const res = await fetch(`${API}/searches/${id}/refresh`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to refresh search");
+}
+
+export async function togglePin(listingId: string): Promise<Listing> {
+  const res = await fetch(`${API}/listings/${listingId}/pin`, { method: "PATCH" });
+  if (!res.ok) throw new Error("Failed to toggle pin");
+  return res.json();
 }
