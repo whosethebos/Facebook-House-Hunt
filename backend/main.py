@@ -162,12 +162,12 @@ async def refresh_search(search_id: str, background_tasks: BackgroundTasks):
     if not search:
         raise HTTPException(status_code=404, detail="Search not found")
     if not search.get("group_urls"):
-        raise HTTPException(status_code=400, detail="No groups stored — run the original search first")
+        raise HTTPException(status_code=400, detail="No groups stored - run the original search first")
     if search.get("status") == "running":
         raise HTTPException(status_code=409, detail="Search is already running")
 
-    await db.delete_unpinned_listings(search_id)
     await db.update_search_status(search_id, "running")
+    await db.delete_unpinned_listings(search_id)
 
     orchestrator = OrchestratorAgent(
         search_id=search_id,
@@ -180,11 +180,11 @@ async def refresh_search(search_id: str, background_tasks: BackgroundTasks):
         group_urls=search["group_urls"],
     )
     _active_orchestrators[search_id] = orchestrator
-    background_tasks.add_task(orchestrator.run)
+    background_tasks.add_task(orchestrator.run, extend=False)
     return {"status": "refreshing", "search_id": search_id}
 
 
-@app.patch("/listings/{listing_id}/pin")
+@app.patch("/listings/{listing_id}/pin", response_model=ListingResponse)
 async def pin_listing(listing_id: str):
     """Toggle the is_pinned flag on a listing."""
     listing = await db.toggle_pin(listing_id)
