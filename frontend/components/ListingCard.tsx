@@ -1,5 +1,7 @@
-// frontend/components/ListingCard.tsx
+"use client";
+import { useState } from "react";
 import type { Listing } from "@/lib/api";
+import { togglePin } from "@/lib/api";
 
 function ScoreRing({ score }: { score: number | null }) {
   if (score === null) return null;
@@ -15,6 +17,18 @@ function ScoreRing({ score }: { score: number | null }) {
 }
 
 export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: number }) {
+  const [isPinned, setIsPinned] = useState(listing.is_pinned ?? false);
+
+  const handlePin = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      const updated = await togglePin(listing.id);
+      setIsPinned(updated.is_pinned);
+    } catch {
+      // ignore — UI stays as-is on failure
+    }
+  };
+
   const relativeDate = listing.posted_at
     ? new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(
         Math.round((new Date(listing.posted_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
@@ -23,6 +37,7 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
     : null;
 
   const accentColor =
+    isPinned ? "var(--accent)" :
     listing.match_score && listing.match_score >= 75 ? "var(--success)" :
     listing.match_score && listing.match_score >= 50 ? "var(--warning)" :
     listing.match_score ? "var(--error)" : "var(--border)";
@@ -88,7 +103,26 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
               </p>
             )}
           </div>
-          <ScoreRing score={listing.match_score} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <button
+              onClick={handlePin}
+              title={isPinned ? "Unpin listing" : "Pin listing"}
+              style={{
+                background: isPinned ? "rgba(129,140,248,0.15)" : "transparent",
+                border: `1px solid ${isPinned ? "rgba(129,140,248,0.4)" : "var(--border)"}`,
+                borderRadius: "var(--radius-sm)",
+                padding: "3px 7px",
+                cursor: "pointer",
+                fontSize: 13,
+                lineHeight: 1,
+                color: isPinned ? "var(--accent)" : "var(--text-dim)",
+                transition: "all 0.15s",
+              }}
+            >
+              📌
+            </button>
+            <ScoreRing score={listing.match_score} />
+          </div>
         </div>
 
         {/* Summary */}
@@ -118,6 +152,17 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
               padding: "2px 8px", borderRadius: 100,
             }}>
               {listing.group_name}
+            </span>
+          )}
+          {isPinned && (
+            <span style={{
+              background: "rgba(129,140,248,0.1)",
+              border: "1px solid rgba(129,140,248,0.3)",
+              color: "var(--accent)",
+              fontSize: 11, fontWeight: 500,
+              padding: "2px 8px", borderRadius: 100,
+            }}>
+              Pinned
             </span>
           )}
           {relativeDate && (
