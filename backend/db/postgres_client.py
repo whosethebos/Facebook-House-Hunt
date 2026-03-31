@@ -117,6 +117,7 @@ async def list_listings(search_id: str) -> list[dict]:
 
 
 async def save_group_urls(search_id: str, urls: list[str]) -> None:
+    """Overwrite the group_urls array on a search. Silent no-op if search_id not found."""
     async with get_pool().connection() as conn:
         await conn.execute(
             "UPDATE searches SET group_urls = %s WHERE id = %s",
@@ -125,6 +126,7 @@ async def save_group_urls(search_id: str, urls: list[str]) -> None:
 
 
 async def delete_unpinned_listings(search_id: str) -> None:
+    """Delete all non-pinned listings for a search. Pinned listings are preserved."""
     async with get_pool().connection() as conn:
         await conn.execute(
             "DELETE FROM listings WHERE search_id = %s AND is_pinned = FALSE",
@@ -133,6 +135,7 @@ async def delete_unpinned_listings(search_id: str) -> None:
 
 
 async def toggle_pin(listing_id: str) -> dict | None:
+    """Flip is_pinned on a listing. Returns updated row, or None if listing_id not found."""
     async with get_pool().connection() as conn:
         cur = await conn.execute(
             "UPDATE listings SET is_pinned = NOT is_pinned WHERE id = %s RETURNING *",
