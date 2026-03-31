@@ -155,6 +155,44 @@ async def extend_search(search_id: str, background_tasks: BackgroundTasks):
     return {"status": "extending", "search_id": search_id}
 
 
+@app.post("/searches/{search_id}/refresh")
+async def refresh_search(search_id: str, background_tasks: BackgroundTasks):
+    """Re-scrape the same groups as the original search, preserving pinned listings."""
+    search = await db.get_search(search_id)
+    if not search:
+        raise HTTPException(status_code=404, detail="Search not found")
+    if not search.get("group_urls"):
+        raise HTTPException(status_code=400, detail="No groups stored — run the original search first")
+    if search.get("status") == "running":
+        raise HTTPException(status_code=409, detail="Search is already running")
+
+    await db.delete_unpinned_listings(search_id)
+    await db.update_search_status(search_id, "running")
+
+    orchestrator = OrchestratorAgent(
+        search_id=search_id,
+        city=search["city"],
+        areas=search["areas"],
+        budget_max=search["budget_max"],
+        property_type=search["property_type"],
+        furnishing=search["furnishing"],
+        preferences=search["preferences"],
+        group_urls=search["group_urls"],
+    )
+    _active_orchestrators[search_id] = orchestrator
+    background_tasks.add_task(orchestrator.run)
+    return {"status": "refreshing", "search_id": search_id}
+
+
+@app.patch("/listings/{listing_id}/pin")
+async def pin_listing(listing_id: str):
+    """Toggle the is_pinned flag on a listing."""
+    listing = await db.toggle_pin(listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    return listing
+
+
 @app.post("/fb/login")
 async def fb_login():
     """Trigger a fresh Facebook login (invalidates saved session)."""
