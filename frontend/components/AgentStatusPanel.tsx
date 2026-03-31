@@ -7,6 +7,8 @@ interface Props {
   isDone: boolean;
   listingCount: number;
   onExtend?: () => void;
+  onRefresh?: () => void;
+  hasGroups?: boolean;
   search: {
     city: string;
     areas: string[];
@@ -16,7 +18,7 @@ interface Props {
   };
 }
 
-export function AgentStatusPanel({ messages, isConnected, isDone, listingCount, onExtend, search }: Props) {
+export function AgentStatusPanel({ messages, isConnected, isDone, listingCount, onExtend, onRefresh, hasGroups, search }: Props) {
   const latestMessage = messages[messages.length - 1] ?? null;
 
   return (
@@ -113,17 +115,30 @@ export function AgentStatusPanel({ messages, isConnected, isDone, listingCount, 
         <p style={{ color: "var(--text-muted)", fontSize: 12, margin: 0 }}>matching listings</p>
       </div>
 
-      {/* Extend button */}
-      {isDone && onExtend && (
+      {/* Action buttons (Extend + Refresh) */}
+      {isDone && (onExtend || (onRefresh && hasGroups)) && (
         <>
           <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: 0 }} />
-          <button
-            onClick={onExtend}
-            className="btn-ghost"
-            style={{ width: "100%", justifyContent: "center", fontSize: 13, padding: "8px 0" }}
-          >
-            Extend Search
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {onExtend && (
+              <button
+                onClick={onExtend}
+                className="btn-ghost"
+                style={{ width: "100%", justifyContent: "center", fontSize: 13, padding: "8px 0" }}
+              >
+                Extend Search
+              </button>
+            )}
+            {onRefresh && hasGroups && (
+              <button
+                onClick={onRefresh}
+                className="btn-ghost"
+                style={{ width: "100%", justifyContent: "center", fontSize: 13, padding: "8px 0" }}
+              >
+                Refresh Results
+              </button>
+            )}
+          </div>
         </>
       )}
 
