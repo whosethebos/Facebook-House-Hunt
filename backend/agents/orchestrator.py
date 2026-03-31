@@ -25,6 +25,7 @@ class OrchestratorAgent(BaseAgent):
     property_type: str | None
     furnishing: str | None
     preferences: str | None
+    group_urls: list[str] = []
 
     # Private attributes — not part of the Pydantic schema
     _queue: asyncio.Queue = PrivateAttr()
@@ -36,7 +37,8 @@ class OrchestratorAgent(BaseAgent):
 
     def __init__(self, search_id: str, city: str, areas: list[str],
                  budget_max: int | None, property_type: str | None,
-                 furnishing: str | None, preferences: str | None):
+                 furnishing: str | None, preferences: str | None,
+                 group_urls: list[str] | None = None):
         super().__init__(
             name="orchestrator_agent",
             description="Coordinates the pipeline",
@@ -47,6 +49,7 @@ class OrchestratorAgent(BaseAgent):
             property_type=property_type,
             furnishing=furnishing,
             preferences=preferences,
+            group_urls=group_urls or [],
         )
         self._queue = asyncio.Queue()
         self._done = False
@@ -71,18 +74,29 @@ class OrchestratorAgent(BaseAgent):
                     return
 
                 try:
-                    # Step 1: Discover groups
-                    groups = await self._group_discovery.discover(
-                        context, self.city, self._queue,
-                        extend_offset=extend_offset, max_groups=8,
-                    )
-                    if not groups:
+                    # Step 1: Discover groups (or reuse stored ones for refresh)
+                    if self.group_urls:
+                        groups = self.group_urls
                         await self._queue.put({
-                            "event": "error",
-                            "data": {"message": f"No Facebook groups found for {self.city}"},
+                            "event": "status",
+                            "data": {
+                                "message": f"Using {len(groups)} previously discovered groups",
+                                "status": "discovering",
+                            },
                         })
-                        await db.update_search_status(self.search_id, "failed")
-                        return
+                    else:
+                        groups = await self._group_discovery.discover(
+                            context, self.city, self._queue,
+                            extend_offset=extend_offset, max_groups=8,
+                        )
+                        if not groups:
+                            await self._queue.put({
+                                "event": "error",
+                                "data": {"message": f"No Facebook groups found for {self.city}"},
+                            })
+                            await db.update_search_status(self.search_id, "failed")
+                            return
+                        await db.save_group_urls(self.search_id, groups)
 
                     # Step 2: Scrape posts
                     posts = await self._scraper.scrape(
