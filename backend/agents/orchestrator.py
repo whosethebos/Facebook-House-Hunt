@@ -81,9 +81,10 @@ class OrchestratorAgent(BaseAgent):
                             "event": "status",
                             "data": {
                                 "message": f"Using {len(groups)} previously discovered groups",
-                                "status": "discovering",
+                                "status": "reusing_groups",
                             },
                         })
+                        # extend_offset is not applicable when reusing stored groups
                     else:
                         groups = await self._group_discovery.discover(
                             context, self.city, self._queue,
