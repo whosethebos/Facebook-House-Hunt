@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getSearch, extendSearch, type Search, type Listing } from "@/lib/api";
+import { getSearch, extendSearch, refreshSearch, type Search, type Listing } from "@/lib/api";
 import { useSSE } from "@/lib/sse";
 import { ListingCard } from "@/components/ListingCard";
 import { AgentStatusPanel } from "@/components/AgentStatusPanel";
@@ -33,6 +33,16 @@ export default function ResultsPage() {
       window.location.reload();
     } catch {
       setIsExtending(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!id) return;
+    try {
+      await refreshSearch(id);
+      window.location.reload();
+    } catch {
+      // ignore — user can retry
     }
   };
 
@@ -70,6 +80,8 @@ export default function ResultsPage() {
           isDone={isDone || search.status !== "running"}
           listingCount={displayListings.length}
           onExtend={isDone || search.status === "completed" ? handleExtend : undefined}
+          onRefresh={isDone || search.status === "completed" ? handleRefresh : undefined}
+          hasGroups={(search.group_urls?.length ?? 0) > 0}
           search={{
             city: search.city,
             areas: search.areas,
