@@ -39,6 +39,7 @@ class SearchResponse(BaseModel):
     created_at: datetime
     listing_count: int = 0
     top_score: int | None = None
+    group_urls: list[str] = []
 
 
 class ListingResponse(BaseModel):
@@ -57,6 +58,7 @@ class ListingResponse(BaseModel):
     summary: str | None
     match_score: int | None
     score_breakdown: dict | None
+    is_pinned: bool = False
     created_at: datetime
 
 
