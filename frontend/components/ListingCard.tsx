@@ -18,14 +18,19 @@ function ScoreRing({ score }: { score: number | null }) {
 
 export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: number }) {
   const [isPinned, setIsPinned] = useState(listing.is_pinned ?? false);
+  const [pinLoading, setPinLoading] = useState(false);
 
   const handlePin = async (e: React.MouseEvent) => {
     e.preventDefault();
+    if (pinLoading) return;
+    setPinLoading(true);
     try {
       const updated = await togglePin(listing.id);
       setIsPinned(updated.is_pinned);
     } catch {
-      // ignore — UI stays as-is on failure
+      console.error("Failed to toggle pin");
+    } finally {
+      setPinLoading(false);
     }
   };
 
@@ -106,17 +111,20 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             <button
               onClick={handlePin}
+              disabled={pinLoading}
+              aria-label={isPinned ? "Unpin listing" : "Pin listing"}
               title={isPinned ? "Unpin listing" : "Pin listing"}
               style={{
                 background: isPinned ? "rgba(129,140,248,0.15)" : "transparent",
                 border: `1px solid ${isPinned ? "rgba(129,140,248,0.4)" : "var(--border)"}`,
                 borderRadius: "var(--radius-sm)",
                 padding: "3px 7px",
-                cursor: "pointer",
+                cursor: pinLoading ? "wait" : "pointer",
                 fontSize: 13,
                 lineHeight: 1,
                 color: isPinned ? "var(--accent)" : "var(--text-dim)",
                 transition: "all 0.15s",
+                opacity: pinLoading ? 0.5 : 1,
               }}
             >
               📌
