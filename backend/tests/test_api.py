@@ -3,8 +3,16 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 from main import app
+import main as main_module
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def clear_orchestrators():
+    main_module._active_orchestrators.clear()
+    yield
+    main_module._active_orchestrators.clear()
 
 
 def test_health():
@@ -45,6 +53,13 @@ def test_refresh_search_no_groups():
     assert response.status_code == 400
 
 
+def test_refresh_search_not_found():
+    """Returns 404 when search does not exist."""
+    with patch("main.db.get_search", new=AsyncMock(return_value=None)):
+        response = client.post("/searches/nonexistent/refresh")
+    assert response.status_code == 404
+
+
 def test_refresh_search_already_running():
     """Returns 409 when search is already running."""
     search_stub = {
@@ -78,6 +93,7 @@ def test_refresh_search_success():
         response = client.post("/searches/abc/refresh")
     assert response.status_code == 200
     assert response.json()["status"] == "refreshing"
+    assert "abc" in main_module._active_orchestrators
 
 
 def test_pin_listing_not_found():
@@ -101,3 +117,19 @@ def test_pin_listing_success():
         response = client.patch("/listings/listing-1/pin")
     assert response.status_code == 200
     assert response.json()["is_pinned"] is True
+
+
+def test_unpin_listing_success():
+    """Returns updated listing when unpinning (is_pinned becomes False)."""
+    listing_stub = {
+        "id": "listing-1", "search_id": "abc", "fb_post_url": "https://fb.com/post/1",
+        "group_name": None, "poster_name": None, "posted_at": None,
+        "raw_text": None, "image_urls": [], "extracted_rent": None,
+        "extracted_area": None, "extracted_type": None, "extracted_furnishing": None,
+        "summary": None, "match_score": None, "score_breakdown": None,
+        "is_pinned": False, "created_at": "2026-03-31T00:00:00+00:00",
+    }
+    with patch("main.db.toggle_pin", new=AsyncMock(return_value=listing_stub)):
+        response = client.patch("/listings/listing-1/pin")
+    assert response.status_code == 200
+    assert response.json()["is_pinned"] is False
