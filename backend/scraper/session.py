@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from playwright.async_api import BrowserContext
@@ -33,8 +34,8 @@ async def load_session_into_context(playwright) -> BrowserContext | None:
     if not _session_is_valid():
         return None
     browser = await playwright.chromium.launch(
-        headless=True,
-        args=["--no-sandbox", "--disable-setuid-sandbox"],
+        headless=False,
+        args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-blink-features=AutomationControlled"],
     )
     context = await browser.new_context(
         storage_state=str(_session_path()),
@@ -45,12 +46,19 @@ async def load_session_into_context(playwright) -> BrowserContext | None:
             "Chrome/124.0.0.0 Safari/537.36"
         ),
     )
+    await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return context
 
 
-async def login_and_save(playwright) -> BrowserContext:
+async def login_and_save(playwright, confirm_event: asyncio.Event | None = None) -> BrowserContext:
     """
     Log into Facebook with credentials from settings, save session, return context.
+
+    If confirm_event is provided the function fills credentials and then waits for the
+    event to be set (up to 10 minutes) so the user can complete 2FA in the browser
+    before the pipeline continues.  If no event is given it falls back to waiting for
+    the Facebook home URL directly (suitable for headless / no-2FA scenarios).
+
     Raises ValueError if credentials are not configured.
     """
     if not settings.fb_email or not settings.fb_password:
@@ -92,20 +100,40 @@ async def login_and_save(playwright) -> BrowserContext:
     await page.fill("[name='email']", settings.fb_email)
     await page.fill("[name='pass']", settings.fb_password)
     await page.click("[role='button'][aria-label='Log in']")
-    await page.wait_for_url("https://www.facebook.com/", timeout=30000)
+
+    if confirm_event is not None:
+        # Wait for the user to confirm login is complete in the app UI (handles 2FA)
+        try:
+            await asyncio.wait_for(confirm_event.wait(), timeout=600)  # 10 min
+        except asyncio.TimeoutError:
+            raise RuntimeError("Facebook login confirmation timed out after 10 minutes")
+    else:
+        await page.wait_for_url("https://www.facebook.com/", timeout=30000)
+
     await save_session(context)
     return context
 
 
-async def get_context(playwright) -> BrowserContext:
+async def get_context(playwright, confirm_event: asyncio.Event | None = None) -> BrowserContext:
     """
-    Return a logged-in BrowserContext.
-    Loads saved session if valid, otherwise performs fresh login.
+    Return a logged-in BrowserContext, always headless for scraping.
+
+    If a saved session exists it is loaded directly in a headless browser.
+    Otherwise a non-headless browser is opened so the user can log in and
+    complete any 2FA, then that browser is closed and a fresh headless
+    browser is started with the saved session.
     """
     ctx = await load_session_into_context(playwright)
     if ctx is not None:
         return ctx
-    return await login_and_save(playwright)
+
+    # Login phase — non-headless so the user can see and complete 2FA
+    login_ctx = await login_and_save(playwright, confirm_event=confirm_event)
+    # Close the visible browser; all subsequent work happens headless
+    await login_ctx.browser.close()
+
+    # Reopen headless with the session we just saved
+    return await load_session_into_context(playwright)
 
 
 def invalidate_session() -> None:

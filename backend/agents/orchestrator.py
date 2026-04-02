@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from pydantic import ConfigDict, PrivateAttr
 from google.adk.agents import BaseAgent
 from playwright.async_api import async_playwright
+import asyncio
 from scraper.session import get_context, invalidate_session, save_session
 from agents.group_discovery import GroupDiscoveryAgent
 from agents.scraper_agent import ScraperAgent
@@ -30,6 +31,7 @@ class OrchestratorAgent(BaseAgent):
     # Private attributes — not part of the Pydantic schema
     _queue: asyncio.Queue = PrivateAttr()
     _done: bool = PrivateAttr(default=False)
+    _login_confirm_event: asyncio.Event | None = PrivateAttr(default=None)
     _group_discovery: GroupDiscoveryAgent = PrivateAttr()
     _scraper: ScraperAgent = PrivateAttr()
     _analyst: AnalystAgent = PrivateAttr()
@@ -38,7 +40,8 @@ class OrchestratorAgent(BaseAgent):
     def __init__(self, search_id: str, city: str, areas: list[str],
                  budget_max: int | None, property_type: str | None,
                  furnishing: str | None, preferences: str | None,
-                 group_urls: list[str] | None = None):
+                 group_urls: list[str] | None = None,
+                 login_confirm_event: asyncio.Event | None = None):
         super().__init__(
             name="orchestrator_agent",
             description="Coordinates the pipeline",
@@ -53,6 +56,7 @@ class OrchestratorAgent(BaseAgent):
         )
         self._queue = asyncio.Queue()
         self._done = False
+        self._login_confirm_event = login_confirm_event
         self._group_discovery = GroupDiscoveryAgent()
         self._scraper = ScraperAgent()
         self._analyst = AnalystAgent()
@@ -62,9 +66,17 @@ class OrchestratorAgent(BaseAgent):
         """Run the full pipeline. Called as a background task."""
         try:
             async with async_playwright() as pw:
-                # Get or create FB session
+                # Always start with a fresh Facebook session to avoid stale cookie issues
+                invalidate_session()
+                await self._queue.put({
+                    "event": "login_required",
+                    "data": {
+                        "message": "A browser window has opened for Facebook login. "
+                                   "Complete any 2FA steps, then click \"Continue\" in the app.",
+                    },
+                })
                 try:
-                    context = await get_context(pw)
+                    context = await get_context(pw, confirm_event=self._login_confirm_event)
                 except Exception as e:
                     await self._queue.put({
                         "event": "error",
@@ -88,7 +100,7 @@ class OrchestratorAgent(BaseAgent):
                     else:
                         groups = await self._group_discovery.discover(
                             context, self.city, self._queue,
-                            extend_offset=extend_offset, max_groups=8,
+                            extend_offset=extend_offset, max_groups=15,
                         )
                         if not groups:
                             await self._queue.put({

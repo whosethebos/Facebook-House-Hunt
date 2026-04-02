@@ -4,6 +4,15 @@ import random
 from datetime import datetime, timezone, timedelta
 from playwright.async_api import BrowserContext, Page
 
+# URL-encoded filter value for "Recent posts" in Facebook group search.
+# Decoded: {"recentlyPosted":"true"}  (copied from observed Facebook URL)
+_RECENT_POSTS_FILTER = "eyJyZWNlbnRseVBvc3RlZDoidHJ1ZSJ9"
+
+FB = "https://www.facebook.com"
+
+# Paths that appear in /groups/ hrefs but are not actual group pages
+_SKIP_PATHS = {"groups", "search", "members", "media", "events", "files", "about", "permalink"}
+
 
 async def _human_delay(min_s: float = 2.0, max_s: float = 5.0) -> None:
     """Random delay to mimic human browsing speed."""
@@ -17,15 +26,20 @@ async def _slow_scroll(page: Page, steps: int = 5) -> None:
         await asyncio.sleep(random.uniform(0.3, 0.8))
 
 
-async def discover_groups(context: BrowserContext, city: str, max_groups: int = 8) -> list[str]:
+async def discover_groups(context: BrowserContext, city: str, max_groups: int = 15) -> list[str]:
     """
     Search Facebook for rental groups in the given city.
-    Returns list of group URLs (up to max_groups).
+
+    Searches using the Groups filter (search/groups/) with the primary query
+    "flat and flatmates {city}", then falls back to broader queries until
+    max_groups unique group URLs are collected.
+
+    Returns list of absolute group URLs (up to max_groups).
     """
     page = await context.new_page()
     group_urls: list[str] = []
     queries = [
-        f"flat flatmates {city}",
+        f"flat and flatmates {city}",
         f"flat rent {city}",
         f"room rent {city}",
     ]
@@ -35,24 +49,46 @@ async def discover_groups(context: BrowserContext, city: str, max_groups: int = 
         if len(group_urls) >= max_groups:
             break
         try:
-            encoded = query.replace(" ", "+")
+            encoded = query.replace(" ", "%20")
+            # search/groups/ already applies the Groups filter shown in the screenshots
             await page.goto(
-                f"https://www.facebook.com/search/groups/?q={encoded}",
+                f"{FB}/search/groups/?q={encoded}",
                 wait_until="networkidle",
-                timeout=20000,
+                timeout=25000,
             )
             await _human_delay(2, 4)
 
-            # Each group result has a link containing /groups/ in href
+            # DEBUG: capture what Facebook actually shows us
+            try:
+                import os
+                debug_path = f"/tmp/fb_debug_{query[:20].replace(' ', '_')}.png"
+                await page.screenshot(path=debug_path, full_page=False)
+                print(f"[DEBUG] Screenshot saved: {debug_path}")
+                print(f"[DEBUG] Current URL: {page.url}")
+                page_text_preview = (await page.inner_text("body"))[:300]
+                print(f"[DEBUG] Page text preview: {page_text_preview!r}")
+            except Exception as dbg_e:
+                print(f"[DEBUG] Screenshot failed: {dbg_e}")
+
             links = await page.query_selector_all("a[href*='/groups/']")
             for link in links:
                 href = await link.get_attribute("href")
-                if href and "/groups/" in href and "search" not in href:
-                    # Normalise to just the group path
-                    clean = href.split("?")[0].rstrip("/")
-                    if clean not in seen and len(group_urls) < max_groups:
-                        seen.add(clean)
-                        group_urls.append(clean)
+                if not href:
+                    continue
+                # Make absolute (Facebook often returns relative hrefs)
+                if href.startswith("/"):
+                    href = FB + href
+                if "/groups/" not in href:
+                    continue
+                # Strip query params and trailing slash to get the canonical URL
+                clean = href.split("?")[0].rstrip("/")
+                # Drop utility paths that aren't actual group home pages
+                last_segment = clean.split("/")[-1]
+                if last_segment in _SKIP_PATHS:
+                    continue
+                if clean not in seen and len(group_urls) < max_groups:
+                    seen.add(clean)
+                    group_urls.append(clean)
         except Exception:
             continue
         await _human_delay(1, 3)
@@ -66,59 +102,100 @@ async def scrape_group_for_area(
     group_url: str,
     area: str,
     days_back: int = 7,
+    max_posts: int = 15,
 ) -> list[dict]:
     """
-    Search inside a Facebook group for posts mentioning `area`,
-    filter to last `days_back` days, extract post data.
-    Returns list of raw post dicts.
+    Search inside a Facebook group for posts mentioning `area` with the
+    "Recent posts" filter enabled, returning up to max_posts posts that
+    have at least one image.
+
+    Stops scrolling as soon as max_posts qualifying posts are collected.
+    Returns deduplicated list of raw post dicts.
     """
     page = await context.new_page()
     posts: list[dict] = []
+    seen_urls: set[str] = set()
     cutoff = datetime.now(tz=timezone.utc) - timedelta(days=days_back)
+    group_id = group_url.rstrip("/").split("/")[-1]
 
     try:
-        await page.goto(group_url, wait_until="networkidle", timeout=20000)
-        await _human_delay(2, 4)
-
-        # Click the group search icon/button
-        search_btn = await page.query_selector("[aria-label='Search this group']")
-        if not search_btn:
-            search_btn = await page.query_selector("[placeholder='Search this group']")
-        if not search_btn:
-            # Try navigating directly to group search URL
-            group_id = group_url.rstrip("/").split("/")[-1]
-            await page.goto(
-                f"https://www.facebook.com/groups/{group_id}/search/?q={area}",
-                wait_until="networkidle",
-                timeout=20000,
+        if area:
+            encoded_area = area.replace(" ", "%20")
+            search_url = (
+                f"{FB}/groups/{group_id}/search"
+                f"?q={encoded_area}&filters={_RECENT_POSTS_FILTER}"
             )
         else:
-            await search_btn.click()
-            await _human_delay(1, 2)
-            search_input = await page.wait_for_selector("input[type='search']", timeout=5000)
-            await search_input.fill(area)
-            await search_input.press("Enter")
-            await _human_delay(2, 3)
+            search_url = group_url
 
-        # Scroll and collect posts
-        for scroll_pass in range(6):  # scroll up to 6 times
+        await page.goto(search_url, wait_until="networkidle", timeout=25000)
+        await _human_delay(2, 4)
+
+        # Belt-and-suspenders: click the Recent posts toggle if visible and unchecked
+        try:
+            toggle = await page.query_selector(
+                "[aria-label='Recent posts'], "
+                "label:has-text('Recent posts')"
+            )
+            if toggle:
+                checked = await toggle.get_attribute("aria-checked")
+                if checked != "true":
+                    await toggle.click()
+                    await _human_delay(1, 2)
+        except Exception:
+            pass
+
+        # Detect empty-result pages immediately and bail out — no point scrolling
+        try:
+            page_text = await page.inner_text("body")
+            no_results_phrases = [
+                "no results", "no posts", "nothing matches",
+                "0 results", "couldn't find anything",
+            ]
+            if any(p in page_text.lower() for p in no_results_phrases):
+                return []
+        except Exception:
+            pass
+
+        # Scroll up to 8 passes; stop early once we have max_posts qualifying posts
+        for _ in range(8):
+            if len(posts) >= max_posts:
+                break
+
             await _slow_scroll(page, steps=4)
             await _human_delay(1.5, 3)
 
-            # Find post containers — Facebook uses role="article" for feed posts
+            # Expand "See more" to get full post text
+            try:
+                see_more = await page.query_selector_all(
+                    "[role='article'] [role='button']:has-text('See more'), "
+                    "[role='article'] span:has-text('See more')"
+                )
+                for btn in see_more[:20]:
+                    try:
+                        await btn.click()
+                        await asyncio.sleep(0.3)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
             articles = await page.query_selector_all("[role='article']")
             for article in articles:
+                if len(posts) >= max_posts:
+                    break
                 try:
                     post = await _extract_post(page, article)
                     if post is None:
                         continue
-                    # Skip posts older than cutoff
                     if post.get("posted_at") and post["posted_at"] < cutoff:
                         continue
-                    # Quick pre-filter: skip posts with no images
                     if not post.get("image_urls"):
                         continue
-                    posts.append(post)
+                    url = post.get("fb_post_url", "")
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        posts.append(post)
                 except Exception:
                     continue
 
@@ -129,15 +206,7 @@ async def scrape_group_for_area(
     finally:
         await page.close()
 
-    # Deduplicate by URL within this batch
-    seen: set[str] = set()
-    unique = []
-    for p in posts:
-        url = p.get("fb_post_url", "")
-        if url and url not in seen:
-            seen.add(url)
-            unique.append(p)
-    return unique
+    return posts
 
 
 async def _extract_post(page: Page, article) -> dict | None:

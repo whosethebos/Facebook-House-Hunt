@@ -143,3 +143,45 @@ async def toggle_pin(listing_id: str) -> dict | None:
         )
         row = await cur.fetchone()
         return _row(row) if row else None
+
+
+async def get_listing(listing_id: str) -> dict | None:
+    """Fetch a single listing by id."""
+    async with get_pool().connection() as conn:
+        cur = await conn.execute(
+            "SELECT * FROM listings WHERE id = %s",
+            (listing_id,),
+        )
+        row = await cur.fetchone()
+        return _row(row) if row else None
+
+
+async def update_listing_analysis(
+    listing_id: str,
+    extracted_rent: int | None,
+    extracted_area: str | None,
+    extracted_type: str | None,
+    extracted_furnishing: str | None,
+    summary: str | None,
+    match_score: int | None,
+    score_breakdown: dict | None,
+) -> dict | None:
+    """Overwrite the Ollama analysis fields on a listing. Returns the updated row."""
+    async with get_pool().connection() as conn:
+        cur = await conn.execute(
+            """UPDATE listings
+               SET extracted_rent = %s, extracted_area = %s, extracted_type = %s,
+                   extracted_furnishing = %s, summary = %s,
+                   match_score = %s, score_breakdown = %s
+               WHERE id = %s
+               RETURNING *""",
+            (
+                extracted_rent, extracted_area, extracted_type,
+                extracted_furnishing, summary,
+                match_score,
+                Json(score_breakdown) if score_breakdown else None,
+                listing_id,
+            ),
+        )
+        row = await cur.fetchone()
+        return _row(row) if row else None

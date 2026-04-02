@@ -13,10 +13,13 @@ from agents.orchestrator import OrchestratorAgent
 from agents.ranker_agent import RankerAgent
 from config import settings
 from scraper.session import login_and_save, invalidate_session
+from llm.analyze import analyze_post
 from playwright.async_api import async_playwright
 
 # In-memory registry of active orchestrators keyed by search_id
 _active_orchestrators: dict[str, OrchestratorAgent] = {}
+# Pending Facebook login confirmation events keyed by search_id
+_login_confirm_events: dict[str, asyncio.Event] = {}
 
 
 @asynccontextmanager
@@ -87,6 +90,8 @@ async def create_search(req: CreateSearchRequest, background_tasks: BackgroundTa
     )
     search_id = search["id"]
 
+    login_event = asyncio.Event()
+    _login_confirm_events[search_id] = login_event
     orchestrator = OrchestratorAgent(
         search_id=search_id,
         city=req.city,
@@ -95,6 +100,7 @@ async def create_search(req: CreateSearchRequest, background_tasks: BackgroundTa
         property_type=req.property_type,
         furnishing=req.furnishing,
         preferences=req.preferences,
+        login_confirm_event=login_event,
     )
     _active_orchestrators[search_id] = orchestrator
     background_tasks.add_task(orchestrator.run)
@@ -125,6 +131,7 @@ async def stream_search(search_id: str):
 
         # Clean up after stream ends
         _active_orchestrators.pop(search_id, None)
+        _login_confirm_events.pop(search_id, None)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -141,6 +148,8 @@ async def extend_search(search_id: str, background_tasks: BackgroundTasks):
 
     await db.update_search_status(search_id, "running")
 
+    login_event = asyncio.Event()
+    _login_confirm_events[search_id] = login_event
     orchestrator = OrchestratorAgent(
         search_id=search_id,
         city=search["city"],
@@ -149,6 +158,7 @@ async def extend_search(search_id: str, background_tasks: BackgroundTasks):
         property_type=search["property_type"],
         furnishing=search["furnishing"],
         preferences=search["preferences"],
+        login_confirm_event=login_event,
     )
     _active_orchestrators[search_id] = orchestrator
     background_tasks.add_task(orchestrator.run, extend=True, extend_offset=extend_offset)
@@ -169,6 +179,8 @@ async def refresh_search(search_id: str, background_tasks: BackgroundTasks):
     await db.update_search_status(search_id, "running")
     await db.delete_unpinned_listings(search_id)
 
+    login_event = asyncio.Event()
+    _login_confirm_events[search_id] = login_event
     orchestrator = OrchestratorAgent(
         search_id=search_id,
         city=search["city"],
@@ -178,10 +190,46 @@ async def refresh_search(search_id: str, background_tasks: BackgroundTasks):
         furnishing=search["furnishing"],
         preferences=search["preferences"],
         group_urls=search["group_urls"],
+        login_confirm_event=login_event,
     )
     _active_orchestrators[search_id] = orchestrator
     background_tasks.add_task(orchestrator.run, extend=False)
     return {"status": "refreshing", "search_id": search_id}
+
+
+@app.post("/listings/{listing_id}/analyze", response_model=ListingResponse)
+async def analyze_listing(listing_id: str):
+    """Run Ollama analysis on a single listing and persist the score."""
+    listing = await db.get_listing(listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    search = await db.get_search(listing["search_id"])
+    if not search:
+        raise HTTPException(status_code=404, detail="Search not found")
+
+    result = await analyze_post(
+        post_text=listing.get("raw_text") or "",
+        city=search["city"],
+        areas=search.get("areas") or [],
+        budget_max=search.get("budget_max"),
+        property_type=search.get("property_type"),
+        furnishing=search.get("furnishing"),
+        preferences=search.get("preferences"),
+    )
+
+    updated = await db.update_listing_analysis(
+        listing_id=listing_id,
+        extracted_rent=result["extracted_rent"],
+        extracted_area=result["extracted_area"],
+        extracted_type=result["extracted_type"],
+        extracted_furnishing=result["extracted_furnishing"],
+        summary=result["summary"],
+        match_score=result["match_score"],
+        score_breakdown=result["score_breakdown"],
+    )
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to save analysis")
+    return updated
 
 
 @app.patch("/listings/{listing_id}/pin", response_model=ListingResponse)
@@ -191,6 +239,16 @@ async def pin_listing(listing_id: str):
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
     return listing
+
+
+@app.post("/searches/{search_id}/fb-login-confirm")
+async def confirm_fb_login(search_id: str):
+    """Signal that the user has completed Facebook login (including any 2FA) in the browser."""
+    event = _login_confirm_events.pop(search_id, None)
+    if event is None:
+        raise HTTPException(status_code=404, detail="No pending Facebook login for this search")
+    event.set()
+    return {"status": "ok"}
 
 
 @app.post("/fb/login")

@@ -1,15 +1,12 @@
 # backend/agents/analyst_agent.py
 import asyncio
-from typing import ClassVar
 from google.adk.agents import BaseAgent
 from llm.analyze import analyze_post
 from db import postgres_client as db
 
 
 class AnalystAgent(BaseAgent):
-    """Scores each post with Ollama and stores qualifying listings in DB."""
-
-    DISCARD_THRESHOLD: ClassVar[int] = 40  # posts scoring below this are not stored
+    """Scores each post with Ollama and stores all listings with images in DB."""
 
     def __init__(self):
         super().__init__(
@@ -51,9 +48,6 @@ class AnalystAgent(BaseAgent):
                     furnishing=furnishing,
                     preferences=preferences,
                 )
-
-                if result["match_score"] < self.DISCARD_THRESHOLD:
-                    continue
 
                 listing = await db.insert_listing(
                     search_id=search_id,

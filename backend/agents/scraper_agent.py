@@ -39,7 +39,7 @@ class ScraperAgent(BaseAgent):
                     "data": {"message": f"Scraping group: {label}...", "status": "scraping"},
                 })
                 try:
-                    posts = await scrape_group_for_area(context, group_url, area, days_back)
+                    posts = await scrape_group_for_area(context, group_url, area, days_back, max_posts=15)
                     new_posts = [p for p in posts if p["fb_post_url"] not in seen_urls]
                     for p in new_posts:
                         seen_urls.add(p["fb_post_url"])
