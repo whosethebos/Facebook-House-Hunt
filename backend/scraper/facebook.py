@@ -45,36 +45,47 @@ async def discover_groups(context: BrowserContext, city: str, max_groups: int = 
     ]
     seen: set[str] = set()
 
+    import sys
+    _log = open("/tmp/fb_discover_debug.log", "w", buffering=1)
+
+    def _dbg(msg: str) -> None:
+        print(f"[DEBUG] {msg}", flush=True)
+        _log.write(f"[DEBUG] {msg}\n")
+        _log.flush()
+
+    _dbg("discover_groups called")
+
     for query in queries:
         if len(group_urls) >= max_groups:
             break
         try:
             encoded = query.replace(" ", "%20")
-            # search/groups/ already applies the Groups filter shown in the screenshots
-            await page.goto(
-                f"{FB}/search/groups/?q={encoded}",
-                wait_until="networkidle",
-                timeout=25000,
-            )
-            await _human_delay(2, 4)
-
-            # DEBUG: capture what Facebook actually shows us
+            url = f"{FB}/search/groups/?q={encoded}"
+            _dbg(f"Navigating to: {url}")
+            # domcontentloaded is more reliable than networkidle on Facebook
             try:
-                import os
-                debug_path = f"/tmp/fb_debug_{query[:20].replace(' ', '_')}.png"
-                await page.screenshot(path=debug_path, full_page=False)
-                print(f"[DEBUG] Screenshot saved: {debug_path}")
-                print(f"[DEBUG] Current URL: {page.url}")
-                page_text_preview = (await page.inner_text("body"))[:300]
-                print(f"[DEBUG] Page text preview: {page_text_preview!r}")
-            except Exception as dbg_e:
-                print(f"[DEBUG] Screenshot failed: {dbg_e}")
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            except Exception as nav_e:
+                _dbg(f"goto raised (continuing anyway): {nav_e}")
+            _dbg(f"Current URL after goto: {page.url}")
+            await _human_delay(3, 5)
+
+            # Wait up to 10s for at least one group card link to appear
+            try:
+                await page.wait_for_selector("a[href*='/groups/']", timeout=10000)
+            except Exception:
+                _dbg("Timed out waiting for group links — trying anyway")
+
+            await page.screenshot(path=f"/tmp/fb_debug_{query[:15].replace(' ', '_')}.png")
+            _dbg("Screenshot saved")
 
             links = await page.query_selector_all("a[href*='/groups/']")
+            _dbg(f"Raw links found: {len(links)}")
             for link in links:
                 href = await link.get_attribute("href")
                 if not href:
                     continue
+                _dbg(f"  href: {href[:120]}")
                 # Make absolute (Facebook often returns relative hrefs)
                 if href.startswith("/"):
                     href = FB + href
@@ -85,13 +96,19 @@ async def discover_groups(context: BrowserContext, city: str, max_groups: int = 
                 # Drop utility paths that aren't actual group home pages
                 last_segment = clean.split("/")[-1]
                 if last_segment in _SKIP_PATHS:
+                    _dbg(f"  FILTERED (skip path '{last_segment}'): {clean}")
                     continue
                 if clean not in seen and len(group_urls) < max_groups:
                     seen.add(clean)
                     group_urls.append(clean)
-        except Exception:
+                    _dbg(f"  ACCEPTED: {clean}")
+        except Exception as e:
+            _dbg(f"Exception during query '{query}': {e}")
             continue
         await _human_delay(1, 3)
+
+    _dbg(f"discover_groups returning {len(group_urls)} groups")
+    _log.close()
 
     await page.close()
     return group_urls
@@ -112,11 +129,22 @@ async def scrape_group_for_area(
     Stops scrolling as soon as max_posts qualifying posts are collected.
     Returns deduplicated list of raw post dicts.
     """
+    import sys
+
+    _slog = open("/tmp/fb_scrape_debug.log", "a", buffering=1)
+
+    def _dbg(msg: str) -> None:
+        print(f"[SCRAPE] {msg}", flush=True)
+        _slog.write(f"[SCRAPE] {msg}\n")
+        _slog.flush()
+
     page = await context.new_page()
     posts: list[dict] = []
     seen_urls: set[str] = set()
     cutoff = datetime.now(tz=timezone.utc) - timedelta(days=days_back)
     group_id = group_url.rstrip("/").split("/")[-1]
+
+    _dbg(f"=== scrape_group_for_area called: group={group_url} area={area!r} ===")
 
     try:
         if area:
@@ -128,8 +156,17 @@ async def scrape_group_for_area(
         else:
             search_url = group_url
 
-        await page.goto(search_url, wait_until="networkidle", timeout=25000)
+        _dbg(f"Navigating to: {search_url}")
+        try:
+            await page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
+        except Exception as nav_e:
+            _dbg(f"goto raised (continuing anyway): {nav_e}")
+        _dbg(f"Current URL after goto: {page.url}")
         await _human_delay(2, 4)
+
+        # Screenshot of what loaded
+        await page.screenshot(path=f"/tmp/fb_scrape_{group_id[:20]}.png")
+        _dbg("Screenshot saved")
 
         # Belt-and-suspenders: click the Recent posts toggle if visible and unchecked
         try:
@@ -138,30 +175,43 @@ async def scrape_group_for_area(
                 "label:has-text('Recent posts')"
             )
             if toggle:
+                _dbg("Found 'Recent posts' toggle")
                 checked = await toggle.get_attribute("aria-checked")
+                _dbg(f"  aria-checked = {checked!r}")
                 if checked != "true":
                     await toggle.click()
+                    _dbg("  Clicked toggle")
                     await _human_delay(1, 2)
-        except Exception:
-            pass
+                else:
+                    _dbg("  Already checked, skipping click")
+            else:
+                _dbg("No 'Recent posts' toggle found on page")
+        except Exception as te:
+            _dbg(f"Toggle error: {te}")
 
-        # Detect empty-result pages immediately and bail out — no point scrolling
+        # Detect empty-result pages immediately and bail out
         try:
             page_text = await page.inner_text("body")
+            _dbg(f"Page body preview: {page_text[:300]!r}")
             no_results_phrases = [
                 "no results", "no posts", "nothing matches",
                 "0 results", "couldn't find anything",
             ]
-            if any(p in page_text.lower() for p in no_results_phrases):
+            matched = [p for p in no_results_phrases if p in page_text.lower()]
+            if matched:
+                _dbg(f"Empty-result page detected (matched: {matched}) — returning []")
+                _slog.close()
                 return []
-        except Exception:
-            pass
+        except Exception as pe:
+            _dbg(f"Page text check error: {pe}")
 
         # Scroll up to 8 passes; stop early once we have max_posts qualifying posts
-        for _ in range(8):
+        for scroll_pass in range(8):
             if len(posts) >= max_posts:
+                _dbg(f"Reached max_posts ({max_posts}), stopping scroll")
                 break
 
+            _dbg(f"--- Scroll pass {scroll_pass + 1}/8 (posts so far: {len(posts)}) ---")
             await _slow_scroll(page, steps=4)
             await _human_delay(1.5, 3)
 
@@ -171,54 +221,98 @@ async def scrape_group_for_area(
                     "[role='article'] [role='button']:has-text('See more'), "
                     "[role='article'] span:has-text('See more')"
                 )
+                _dbg(f"  'See more' buttons found: {len(see_more)}")
                 for btn in see_more[:20]:
                     try:
                         await btn.click()
                         await asyncio.sleep(0.3)
                     except Exception:
                         pass
-            except Exception:
-                pass
+            except Exception as sme:
+                _dbg(f"  See more error: {sme}")
 
             articles = await page.query_selector_all("[role='article']")
-            for article in articles:
+            _dbg(f"  Articles found: {len(articles)}")
+            for i, article in enumerate(articles):
                 if len(posts) >= max_posts:
                     break
                 try:
                     post = await _extract_post(page, article)
                     if post is None:
+                        _dbg(f"    Article {i}: _extract_post returned None (no permalink)")
                         continue
                     if post.get("posted_at") and post["posted_at"] < cutoff:
+                        _dbg(f"    Article {i}: too old ({post['posted_at']}) — skipped")
                         continue
                     if not post.get("image_urls"):
+                        _dbg(f"    Article {i}: no images — skipped (url={post.get('fb_post_url', '?')[:60]})")
                         continue
                     url = post.get("fb_post_url", "")
                     if url and url not in seen_urls:
                         seen_urls.add(url)
                         posts.append(post)
-                except Exception:
+                        _dbg(f"    Article {i}: ACCEPTED — {url[:60]} images={len(post['image_urls'])}")
+                    elif url in seen_urls:
+                        _dbg(f"    Article {i}: duplicate — skipped")
+                except Exception as ae:
+                    _dbg(f"    Article {i}: exception — {ae}")
                     continue
 
             await _human_delay(2, 4)
 
-    except Exception:
-        pass
+    except Exception as e:
+        _dbg(f"OUTER EXCEPTION: {e}")
     finally:
         await page.close()
 
+    _dbg(f"=== Returning {len(posts)} posts ===")
+    _slog.close()
     return posts
 
 
 async def _extract_post(page: Page, article) -> dict | None:
     """Extract data from a single post article element."""
-    # Post permalink — look for a timestamp link inside the article
+    # DEBUG: dump all hrefs in the article to find the right permalink pattern
+    _elog = open("/tmp/fb_extract_debug.log", "a", buffering=1)
+    try:
+        all_links = await article.query_selector_all("a[href]")
+        article_text_preview = (await article.inner_text())[:120].replace("\n", " ")
+        _elog.write(f"\n[EXTRACT] Article text: {article_text_preview!r}\n")
+        _elog.write(f"[EXTRACT] Total <a href> in article: {len(all_links)}\n")
+        for al in all_links[:30]:
+            ah = await al.get_attribute("href")
+            _elog.write(f"[EXTRACT]   href: {(ah or '')[:120]}\n")
+        _elog.flush()
+    except Exception as de:
+        _elog.write(f"[EXTRACT] debug dump error: {de}\n")
+    finally:
+        _elog.close()
+
+    # Post permalink — try all known Facebook group post URL patterns
     permalink = None
-    time_links = await article.query_selector_all("a[href*='/posts/'], a[href*='?story_fbid=']")
+    time_links = await article.query_selector_all(
+        "a[href*='/posts/'], "
+        "a[href*='?story_fbid='], "
+        "a[href*='/permalink/'], "
+        "a[href*='story_fbid'], "
+        "a[href*='fbid=']"
+    )
     for link in time_links:
         href = await link.get_attribute("href")
         if href:
             permalink = href.split("?")[0]
             break
+
+    # Fallback: any link that goes into this group
+    if not permalink:
+        group_links = await article.query_selector_all("a[href*='/groups/']")
+        for link in group_links:
+            href = await link.get_attribute("href")
+            if href and "/groups/" in href and not any(
+                s in href for s in ["/search", "/members", "/media", "/events", "/about"]
+            ):
+                permalink = href.split("?")[0]
+                break
 
     if not permalink:
         return None
