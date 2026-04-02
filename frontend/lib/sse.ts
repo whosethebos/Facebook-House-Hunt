@@ -8,7 +8,8 @@ export type SSEEvent =
   | { event: "status"; data: { message: string; status: string } }
   | { event: "listing"; data: Record<string, unknown> }
   | { event: "complete"; data: { total: number; high_match?: number; status: string } }
-  | { event: "error"; data: { message: string } };
+  | { event: "error"; data: { message: string } }
+  | { event: "login_required"; data: { message: string } };
 
 export function useSSE(searchId: string | null) {
   const [events, setEvents] = useState<SSEEvent[]>([]);
@@ -42,6 +43,7 @@ export function useSSE(searchId: string | null) {
     es.addEventListener("listing", handleEvent("listing"));
     es.addEventListener("complete", handleEvent("complete"));
     es.addEventListener("error", handleEvent("error"));
+    es.addEventListener("login_required", handleEvent("login_required"));
 
     es.onerror = () => {
       setIsConnected(false);
@@ -74,5 +76,9 @@ export function useSSE(searchId: string | null) {
     | { event: "error"; data: { message: string } }
     | undefined;
 
-  return { statusMessages, listings, completeEvent, errorEvent, isConnected, isDone };
+  const loginRequiredEvent = events.find(e => e.event === "login_required") as
+    | { event: "login_required"; data: { message: string } }
+    | undefined;
+
+  return { statusMessages, listings, completeEvent, errorEvent, loginRequiredEvent, isConnected, isDone };
 }

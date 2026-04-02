@@ -98,3 +98,14 @@ export async function togglePin(listingId: string): Promise<Listing> {
   if (!res.ok) throw new Error("Failed to toggle pin");
   return res.json();
 }
+
+export async function analyzeListing(listingId: string): Promise<Listing> {
+  const res = await fetch(`${API}/listings/${listingId}/analyze`, { method: "POST" });
+  if (!res.ok) throw new Error("Analysis failed");
+  return res.json();
+}
+
+export async function confirmFbLogin(searchId: string): Promise<void> {
+  const res = await fetch(`${API}/searches/${searchId}/fb-login-confirm`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to confirm Facebook login");
+}

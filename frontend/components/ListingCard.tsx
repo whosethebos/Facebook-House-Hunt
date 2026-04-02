@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { Listing } from "@/lib/api";
-import { togglePin } from "@/lib/api";
+import { togglePin, analyzeListing } from "@/lib/api";
 
 function ScoreRing({ score }: { score: number | null }) {
   if (score === null) return null;
@@ -19,6 +19,14 @@ function ScoreRing({ score }: { score: number | null }) {
 export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: number }) {
   const [isPinned, setIsPinned] = useState(listing.is_pinned ?? false);
   const [pinLoading, setPinLoading] = useState(false);
+  const [score, setScore] = useState(listing.match_score);
+  const [summary, setSummary] = useState(listing.summary);
+  const [rent, setRent] = useState(listing.extracted_rent);
+  const [area, setArea] = useState(listing.extracted_area);
+  const [type, setType] = useState(listing.extracted_type);
+  const [furnishing, setFurnishing] = useState(listing.extracted_furnishing);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzed, setAnalyzed] = useState(score !== null);
 
   const handlePin = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -34,6 +42,26 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
     }
   };
 
+  const handleAnalyze = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (analyzing) return;
+    setAnalyzing(true);
+    try {
+      const updated = await analyzeListing(listing.id);
+      setScore(updated.match_score);
+      setSummary(updated.summary);
+      setRent(updated.extracted_rent);
+      setArea(updated.extracted_area);
+      setType(updated.extracted_type);
+      setFurnishing(updated.extracted_furnishing);
+      setAnalyzed(true);
+    } catch {
+      console.error("Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const relativeDate = listing.posted_at
     ? new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(
         Math.round((new Date(listing.posted_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
@@ -43,9 +71,9 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
 
   const accentColor =
     isPinned ? "var(--accent)" :
-    listing.match_score && listing.match_score >= 75 ? "var(--success)" :
-    listing.match_score && listing.match_score >= 50 ? "var(--warning)" :
-    listing.match_score ? "var(--error)" : "var(--border)";
+    score && score >= 75 ? "var(--success)" :
+    score && score >= 50 ? "var(--warning)" :
+    score ? "var(--error)" : "var(--border)";
 
   const delay = Math.min(index, 5);
 
@@ -86,29 +114,51 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              {listing.extracted_type && (
+              {type && (
                 <span style={{ fontWeight: 600, color: "var(--text)", fontSize: 14 }}>
-                  {listing.extracted_type}
+                  {type}
                 </span>
               )}
-              {listing.extracted_area && (
+              {area && (
                 <span style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                  in {listing.extracted_area}
+                  in {area}
                 </span>
               )}
             </div>
-            {listing.extracted_rent && (
+            {rent && (
               <p style={{ margin: "2px 0 0", fontSize: 14, fontWeight: 600, color: "var(--success)" }}>
-                ₹{listing.extracted_rent.toLocaleString("en-IN")}/mo
-                {listing.extracted_furnishing && (
+                ₹{rent.toLocaleString("en-IN")}/mo
+                {furnishing && (
                   <span style={{ color: "var(--text-muted)", fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
-                    · {listing.extracted_furnishing}
+                    · {furnishing}
                   </span>
                 )}
               </p>
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {/* Analyze button — shown when not yet analyzed or as re-analyze */}
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              aria-label="Analyze match score"
+              title={analyzed ? "Re-analyze with Ollama" : "Analyze match score"}
+              style={{
+                background: analyzing ? "rgba(129,140,248,0.1)" : "transparent",
+                border: `1px solid ${analyzing ? "rgba(129,140,248,0.4)" : "var(--border)"}`,
+                borderRadius: "var(--radius-sm)",
+                padding: "3px 8px",
+                cursor: analyzing ? "wait" : "pointer",
+                fontSize: 11,
+                fontWeight: 500,
+                color: analyzing ? "var(--accent)" : "var(--text-dim)",
+                transition: "all 0.15s",
+                opacity: analyzing ? 0.7 : 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {analyzing ? "…" : analyzed ? "↻" : "Analyze"}
+            </button>
             <button
               onClick={handlePin}
               disabled={pinLoading}
@@ -129,12 +179,12 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
             >
               📌
             </button>
-            <ScoreRing score={listing.match_score} />
+            <ScoreRing score={score} />
           </div>
         </div>
 
         {/* Summary */}
-        {listing.summary && (
+        {summary && (
           <p style={{
             color: "var(--text-muted)",
             fontSize: 12,
@@ -145,7 +195,7 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
             WebkitBoxOrient: "vertical",
             overflow: "hidden",
           }}>
-            {listing.summary}
+            {summary}
           </p>
         )}
 

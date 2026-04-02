@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getSearch, extendSearch, refreshSearch, type Search, type Listing } from "@/lib/api";
+import { getSearch, extendSearch, refreshSearch, confirmFbLogin, type Search, type Listing } from "@/lib/api";
 import { useSSE } from "@/lib/sse";
 import { ListingCard } from "@/components/ListingCard";
 import { AgentStatusPanel } from "@/components/AgentStatusPanel";
@@ -14,7 +14,9 @@ export default function ResultsPage() {
   const [storedListings, setStoredListings] = useState<Listing[]>([]);
   const [isExtending, setIsExtending] = useState(false);
 
-  const { statusMessages, listings: streamedListings, completeEvent, errorEvent, isConnected, isDone } = useSSE(id);
+  const { statusMessages, listings: streamedListings, completeEvent, errorEvent, loginRequiredEvent, isConnected, isDone } = useSSE(id);
+  const [loginConfirmed, setLoginConfirmed] = useState(false);
+  const [loginConfirming, setLoginConfirming] = useState(false);
 
   useEffect(() => {
     getSearch(id).then(({ search: s, listings: l }) => {
@@ -33,6 +35,17 @@ export default function ResultsPage() {
       window.location.reload();
     } catch {
       setIsExtending(false);
+    }
+  };
+
+  const handleLoginConfirm = async () => {
+    if (!id || loginConfirming) return;
+    setLoginConfirming(true);
+    try {
+      await confirmFbLogin(id);
+      setLoginConfirmed(true);
+    } catch {
+      setLoginConfirming(false);
     }
   };
 
@@ -112,6 +125,38 @@ export default function ResultsPage() {
             </p>
           )}
         </div>
+
+        {/* Facebook 2FA banner */}
+        {loginRequiredEvent && !loginConfirmed && (
+          <div style={{
+            background: "linear-gradient(135deg, rgba(24,119,242,0.12), rgba(24,119,242,0.06))",
+            border: "1px solid rgba(24,119,242,0.35)",
+            borderRadius: "var(--radius)",
+            padding: "16px 20px",
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+          }}>
+            <div style={{ fontSize: 22, flexShrink: 0 }}>🔐</div>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: "var(--text)", fontWeight: 600, margin: "0 0 2px", fontSize: 14 }}>
+                Facebook login required
+              </p>
+              <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>
+                A browser window has opened. Complete your login (including any 2FA), then click Continue.
+              </p>
+            </div>
+            <button
+              className="btn-primary"
+              onClick={handleLoginConfirm}
+              disabled={loginConfirming}
+              style={{ flexShrink: 0, fontSize: 13, padding: "9px 20px" }}
+            >
+              {loginConfirming ? "Confirming…" : "I'm logged in — Continue"}
+            </button>
+          </div>
+        )}
 
         {/* Error banner */}
         {errorEvent && (
