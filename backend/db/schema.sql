@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS listings (
     posted_at TIMESTAMPTZ,
     raw_text TEXT,
     image_urls TEXT[] NOT NULL DEFAULT '{}',
+    phone_numbers TEXT[] NOT NULL DEFAULT '{}',
     extracted_rent INT,
     extracted_area TEXT,
     extracted_type TEXT,

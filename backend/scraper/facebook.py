@@ -1,8 +1,12 @@
 # backend/scraper/facebook.py
 import asyncio
+import re
 import random
 from datetime import datetime, timezone, timedelta
 from playwright.async_api import BrowserContext, Page
+
+# Regex to extract Indian phone numbers from post text
+_PHONE_RE = re.compile(r'(?:\+?91[\s\-]?)?[6-9]\d{9}')
 
 # URL-encoded filter value for "Recent posts" in Facebook group search.
 # Decoded: {"recentlyPosted":"true"}  (copied from observed Facebook URL)
@@ -126,11 +130,9 @@ async def scrape_group_for_area(
     "Recent posts" filter enabled, returning up to max_posts posts that
     have at least one image.
 
-    Stops scrolling as soon as max_posts qualifying posts are collected.
-    Returns deduplicated list of raw post dicts.
+    Uses in-browser JavaScript evaluation to find post containers reliably,
+    since Facebook's React DOM doesn't consistently use [role='article'] for posts.
     """
-    import sys
-
     _slog = open("/tmp/fb_scrape_debug.log", "a", buffering=1)
 
     def _dbg(msg: str) -> None:
@@ -144,119 +146,251 @@ async def scrape_group_for_area(
     cutoff = datetime.now(tz=timezone.utc) - timedelta(days=days_back)
     group_id = group_url.rstrip("/").split("/")[-1]
 
-    _dbg(f"=== scrape_group_for_area called: group={group_url} area={area!r} ===")
+    _dbg(f"=== scrape_group_for_area: group={group_url} area={area!r} ===")
 
     try:
-        if area:
-            encoded_area = area.replace(" ", "%20")
-            search_url = (
-                f"{FB}/groups/{group_id}/search"
-                f"?q={encoded_area}&filters={_RECENT_POSTS_FILTER}"
-            )
-        else:
-            search_url = group_url
+        encoded_area = area.replace(" ", "%20") if area else ""
+        search_url = (
+            f"{FB}/groups/{group_id}/search?q={encoded_area}&filters={_RECENT_POSTS_FILTER}"
+            if area else group_url
+        )
 
         _dbg(f"Navigating to: {search_url}")
         try:
             await page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
         except Exception as nav_e:
-            _dbg(f"goto raised (continuing anyway): {nav_e}")
-        _dbg(f"Current URL after goto: {page.url}")
-        await _human_delay(2, 4)
+            _dbg(f"goto raised (continuing): {nav_e}")
+        _dbg(f"URL after goto: {page.url}")
+        await _human_delay(3, 5)
 
-        # Screenshot of what loaded
-        await page.screenshot(path=f"/tmp/fb_scrape_{group_id[:20]}.png")
-        _dbg("Screenshot saved")
-
-        # Belt-and-suspenders: click the Recent posts toggle if visible and unchecked
+        # Click Recent posts toggle if not already checked
         try:
             toggle = await page.query_selector(
-                "[aria-label='Recent posts'], "
-                "label:has-text('Recent posts')"
+                "[aria-label='Recent posts'], label:has-text('Recent posts')"
             )
             if toggle:
-                _dbg("Found 'Recent posts' toggle")
                 checked = await toggle.get_attribute("aria-checked")
-                _dbg(f"  aria-checked = {checked!r}")
+                _dbg(f"Toggle found, aria-checked={checked!r}")
                 if checked != "true":
                     await toggle.click()
-                    _dbg("  Clicked toggle")
-                    await _human_delay(1, 2)
-                else:
-                    _dbg("  Already checked, skipping click")
+                    _dbg("Toggle clicked — waiting for feed to refresh")
+                    await _human_delay(4, 6)
             else:
-                _dbg("No 'Recent posts' toggle found on page")
+                _dbg("No toggle found")
         except Exception as te:
             _dbg(f"Toggle error: {te}")
 
-        # Detect empty-result pages immediately and bail out
+        # Quick empty-page check
         try:
             page_text = await page.inner_text("body")
-            _dbg(f"Page body preview: {page_text[:300]!r}")
-            no_results_phrases = [
-                "no results", "no posts", "nothing matches",
-                "0 results", "couldn't find anything",
-            ]
-            matched = [p for p in no_results_phrases if p in page_text.lower()]
-            if matched:
-                _dbg(f"Empty-result page detected (matched: {matched}) — returning []")
+            _dbg(f"Body preview: {page_text[:200]!r}")
+            empty_phrases = ["no results", "no posts", "nothing matches", "0 results", "couldn't find anything"]
+            if any(p in page_text.lower() for p in empty_phrases):
+                _dbg("Empty page — returning []")
                 _slog.close()
                 return []
         except Exception as pe:
-            _dbg(f"Page text check error: {pe}")
+            _dbg(f"Body text error: {pe}")
 
-        # Scroll up to 8 passes; stop early once we have max_posts qualifying posts
+        # Get group name once
+        group_name = None
+        try:
+            h1 = await page.query_selector("h1")
+            if h1:
+                group_name = (await h1.inner_text()).strip() or None
+        except Exception:
+            pass
+
+        # ── Main scroll + extract loop ──────────────────────────────────────
         for scroll_pass in range(8):
             if len(posts) >= max_posts:
-                _dbg(f"Reached max_posts ({max_posts}), stopping scroll")
+                _dbg(f"Reached max_posts ({max_posts}), stopping")
                 break
 
-            _dbg(f"--- Scroll pass {scroll_pass + 1}/8 (posts so far: {len(posts)}) ---")
+            _dbg(f"--- Scroll pass {scroll_pass + 1}/8 (posts: {len(posts)}) ---")
             await _slow_scroll(page, steps=4)
             await _human_delay(1.5, 3)
 
-            # Expand "See more" to get full post text
+            # Expand all "See more" links via JS (works regardless of role/selector)
             try:
-                see_more = await page.query_selector_all(
-                    "[role='article'] [role='button']:has-text('See more'), "
-                    "[role='article'] span:has-text('See more')"
-                )
-                _dbg(f"  'See more' buttons found: {len(see_more)}")
-                for btn in see_more[:20]:
-                    try:
-                        await btn.click()
-                        await asyncio.sleep(0.3)
-                    except Exception:
-                        pass
+                expanded = await page.evaluate("""
+                    () => {
+                        let count = 0;
+                        for (const el of document.querySelectorAll('div,span,a')) {
+                            const txt = el.childNodes.length === 1
+                                ? (el.textContent || '').trim()
+                                : '';
+                            if ((txt === 'See more' || txt === 'See More') &&
+                                    el.offsetParent !== null) {
+                                el.click();
+                                count++;
+                            }
+                        }
+                        return count;
+                    }
+                """)
+                if expanded:
+                    _dbg(f"  Clicked {expanded} 'See more' elements")
+                    await asyncio.sleep(1)
             except Exception as sme:
                 _dbg(f"  See more error: {sme}")
 
-            articles = await page.query_selector_all("[role='article']")
-            _dbg(f"  Articles found: {len(articles)}")
-            for i, article in enumerate(articles):
-                if len(posts) >= max_posts:
-                    break
-                try:
-                    post = await _extract_post(page, article)
-                    if post is None:
-                        _dbg(f"    Article {i}: _extract_post returned None (no permalink)")
+            # ── Extract posts via JavaScript ─────────────────────────────────
+            # Strategy: find all timestamp elements on the page, walk up the DOM
+            # to the post container (the ancestor that has Like + Comment buttons),
+            # then pull out all required data in one JS call.
+            try:
+                js_posts = await page.evaluate("""
+                    () => {
+                        const results = [];
+                        const seen = new Set();
+
+                        const timeEls = document.querySelectorAll('abbr[data-utime], time[datetime]');
+
+                        for (const timeEl of timeEls) {
+                            // Walk up DOM to find the post container.
+                            // A post container always has both a Like button and a Comment button.
+                            let container = timeEl;
+                            let foundContainer = false;
+                            for (let i = 0; i < 30; i++) {
+                                if (!container.parentElement) break;
+                                container = container.parentElement;
+                                const labels = Array.from(
+                                    container.querySelectorAll('[aria-label]')
+                                ).map(b => (b.getAttribute('aria-label') || '').toLowerCase());
+                                if (labels.some(l => l.startsWith('like')) &&
+                                        labels.some(l => l === 'comment')) {
+                                    foundContainer = true;
+                                    break;
+                                }
+                            }
+                            if (!foundContainer) continue;
+
+                            // ── Post URL ────────────────────────────────────
+                            // Walk up from the timestamp element to find its anchor href
+                            let postUrl = null;
+                            let el = timeEl;
+                            for (let i = 0; i < 10; i++) {
+                                if (el.tagName === 'A' && el.href &&
+                                        el.href.includes('/groups/')) {
+                                    postUrl = el.href.split('?')[0];
+                                    break;
+                                }
+                                if (!el.parentElement) break;
+                                el = el.parentElement;
+                            }
+                            // Fallback: any /posts/ or /permalink/ link in the container
+                            if (!postUrl) {
+                                for (const a of container.querySelectorAll('a[href]')) {
+                                    if (a.href.includes('/posts/') ||
+                                            a.href.includes('/permalink/')) {
+                                        postUrl = a.href.split('?')[0];
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!postUrl || seen.has(postUrl)) continue;
+                            seen.add(postUrl);
+
+                            // ── Timestamp ───────────────────────────────────
+                            const tsUnix = timeEl.getAttribute('data-utime');
+                            const tsDt   = timeEl.getAttribute('datetime');
+
+                            // ── Poster name ─────────────────────────────────
+                            const nameEl = container.querySelector(
+                                'h2 a, h3 a, strong a, [data-testid="actor-name"] a'
+                            );
+                            const posterName = nameEl
+                                ? nameEl.textContent.trim()
+                                : null;
+
+                            // ── Post text ────────────────────────────────────
+                            let rawText = '';
+                            const textEl = container.querySelector(
+                                '[data-ad-comet-preview="message"], ' +
+                                '[data-testid="post_message"], ' +
+                                '[dir="auto"]'
+                            );
+                            if (textEl) rawText = textEl.innerText.trim();
+
+                            // ── Images ───────────────────────────────────────
+                            const imgs = Array.from(container.querySelectorAll('img[src]'))
+                                .map(img => img.src)
+                                .filter(src =>
+                                    src.includes('scontent') && !src.includes('emoji'));
+
+                            results.push({
+                                post_url:        postUrl,
+                                poster_name:     posterName,
+                                timestamp_unix:  tsUnix,
+                                timestamp_dt:    tsDt,
+                                raw_text:        rawText,
+                                image_urls:      imgs,
+                            });
+                        }
+
+                        return results;
+                    }
+                """)
+
+                _dbg(f"  JS found {len(js_posts)} candidate posts on page")
+
+                for jp in js_posts:
+                    url = jp.get("post_url", "")
+                    if not url or url in seen_urls:
                         continue
-                    if post.get("posted_at") and post["posted_at"] < cutoff:
-                        _dbg(f"    Article {i}: too old ({post['posted_at']}) — skipped")
+
+                    # Skip posts with no images
+                    if not jp.get("image_urls"):
+                        _dbg(f"  Skip (no images): {url[:70]}")
                         continue
-                    if not post.get("image_urls"):
-                        _dbg(f"    Article {i}: no images — skipped (url={post.get('fb_post_url', '?')[:60]})")
+
+                    # Parse timestamp
+                    posted_at = None
+                    if jp.get("timestamp_unix"):
+                        try:
+                            posted_at = datetime.fromtimestamp(
+                                int(jp["timestamp_unix"]), tz=timezone.utc
+                            )
+                        except (ValueError, TypeError):
+                            pass
+                    if not posted_at and jp.get("timestamp_dt"):
+                        try:
+                            posted_at = datetime.fromisoformat(
+                                jp["timestamp_dt"].replace("Z", "+00:00")
+                            )
+                        except ValueError:
+                            pass
+
+                    if posted_at and posted_at < cutoff:
+                        _dbg(f"  Skip (too old, {posted_at}): {url[:60]}")
                         continue
-                    url = post.get("fb_post_url", "")
-                    if url and url not in seen_urls:
-                        seen_urls.add(url)
-                        posts.append(post)
-                        _dbg(f"    Article {i}: ACCEPTED — {url[:60]} images={len(post['image_urls'])}")
-                    elif url in seen_urls:
-                        _dbg(f"    Article {i}: duplicate — skipped")
-                except Exception as ae:
-                    _dbg(f"    Article {i}: exception — {ae}")
-                    continue
+
+                    # Extract phone numbers from post text
+                    raw_text = jp.get("raw_text", "")
+                    phones = list(set(_PHONE_RE.findall(raw_text)))
+
+                    seen_urls.add(url)
+                    posts.append({
+                        "fb_post_url":   url,
+                        "poster_name":   jp.get("poster_name"),
+                        "posted_at":     posted_at,
+                        "raw_text":      raw_text,
+                        "phone_numbers": phones,
+                        "image_urls":    jp.get("image_urls", []),
+                        "group_name":    group_name,
+                    })
+                    _dbg(
+                        f"  ACCEPTED: {url[:70]} "
+                        f"imgs={len(jp.get('image_urls', []))} "
+                        f"phones={phones}"
+                    )
+
+                    if len(posts) >= max_posts:
+                        break
+
+            except Exception as je:
+                _dbg(f"  JS evaluation error: {je}")
 
             await _human_delay(2, 4)
 

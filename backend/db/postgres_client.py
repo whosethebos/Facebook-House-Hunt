@@ -78,6 +78,7 @@ async def insert_listing(
     posted_at,
     raw_text: str | None,
     image_urls: list[str],
+    phone_numbers: list[str],
     extracted_rent: int | None,
     extracted_area: str | None,
     extracted_type: str | None,
@@ -91,15 +92,15 @@ async def insert_listing(
         cur = await conn.execute(
             """INSERT INTO listings
                (search_id, fb_post_url, group_name, poster_name, posted_at,
-                raw_text, image_urls, extracted_rent, extracted_area, extracted_type,
-                extracted_furnishing, summary, match_score, score_breakdown)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                raw_text, image_urls, phone_numbers, extracted_rent, extracted_area,
+                extracted_type, extracted_furnishing, summary, match_score, score_breakdown)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                ON CONFLICT (search_id, fb_post_url) DO NOTHING
                RETURNING *""",
             (
                 search_id, fb_post_url, group_name, poster_name, posted_at,
-                raw_text, image_urls, extracted_rent, extracted_area, extracted_type,
-                extracted_furnishing, summary, match_score,
+                raw_text, image_urls, phone_numbers, extracted_rent, extracted_area,
+                extracted_type, extracted_furnishing, summary, match_score,
                 Json(score_breakdown) if score_breakdown else None,
             ),
         )

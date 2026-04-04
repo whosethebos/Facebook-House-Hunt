@@ -57,6 +57,7 @@ class AnalystAgent(BaseAgent):
                     posted_at=post.get("posted_at"),
                     raw_text=post.get("raw_text"),
                     image_urls=post.get("image_urls", []),
+                    phone_numbers=post.get("phone_numbers", []),
                     extracted_rent=result["extracted_rent"],
                     extracted_area=result["extracted_area"],
                     extracted_type=result["extracted_type"],
