@@ -1,0 +1,40 @@
+<h2>Architecture Approaches</h2>
+<p class="subtitle">Three ways to structure the Facebook scraping + agent pipeline</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Single Orchestrator + Playwright Scraper</h3>
+      <p>One Google ADK agent orchestrates everything: discovers groups, scrapes posts page-by-page using Playwright, feeds posts to Ollama for analysis, streams results via SSE. Simple, linear pipeline — same pattern as Amazon-Purchase.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Simple to build and debug</li><li>Familiar pattern (matches Amazon project)</li><li>Easy to stream progress</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Sequential — groups scraped one at a time</li><li>Single point of failure</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Multi-Agent: Scraper + Analyst + Ranker (Recommended)</h3>
+      <p>ADK orchestrator coordinates 3 sub-agents: <strong>GroupDiscoveryAgent</strong> finds relevant Facebook groups, <strong>ScraperAgent</strong> extracts posts + images, <strong>AnalystAgent</strong> uses Ollama to score each post against criteria and rank results. All agents report progress via SSE.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Clean separation of concerns</li><li>Easy to extend (add new agents)</li><li>Each agent independently testable</li><li>Matches ADK's multi-agent philosophy</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>More moving parts</li><li>Slightly more setup</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Multi-Agent + Parallel Scraping</h3>
+      <p>Same as B, but the ScraperAgent spawns parallel Playwright sessions to scrape multiple Facebook groups simultaneously. Faster results, but higher memory use and higher risk of Facebook detecting bot behavior.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Significantly faster for many groups</li><li>Results appear sooner in UI</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Higher Facebook bot detection risk</li><li>Higher memory/CPU on local machine</li><li>More complex to debug</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,155 @@
+<h2>Combined Flow Mockup</h2>
+<p class="subtitle">Phase 1: Type naturally → Ollama parses → fields auto-fill → Phase 2: Live results with sidebar</p>
+
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+  <!-- Phase 1 -->
+  <div class="mockup">
+    <div class="mockup-header">Phase 1 — Natural Language Input (before search)</div>
+    <div class="mockup-body" style="background:#0f172a;padding:20px;">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="color:#f8fafc;font-size:18px;font-weight:700;margin-bottom:4px;">🏠 Facebook House Hunt</div>
+        <div style="color:#64748b;font-size:12px;">Find your next home from Facebook group listings</div>
+      </div>
+
+      <!-- NL input box -->
+      <div style="background:#1e293b;border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid #334155;">
+        <div style="color:#94a3b8;font-size:10px;margin-bottom:6px;letter-spacing:0.05em;">DESCRIBE WHAT YOU'RE LOOKING FOR</div>
+        <div style="color:#e2e8f0;font-size:12px;font-style:italic;margin-bottom:8px;">
+          "Looking for a furnished 1BHK in Pune near Hinjewadi, budget around ₹15,000, no brokerage preferred"
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;animation:pulse 1s infinite;"></div>
+          <div style="color:#22c55e;font-size:10px;">Analysing with Ollama...</div>
+        </div>
+      </div>
+
+      <!-- Auto-filled structured fields -->
+      <div style="color:#94a3b8;font-size:10px;margin-bottom:8px;letter-spacing:0.05em;">✨ EXTRACTED DETAILS — EDIT IF NEEDED</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+        <div style="background:#1e293b;border-radius:7px;padding:10px;border:1px solid #0ea5e9;">
+          <div style="color:#64748b;font-size:9px;margin-bottom:3px;">CITY</div>
+          <div style="color:#e2e8f0;font-size:12px;font-weight:600;">Pune</div>
+          <div style="color:#0ea5e9;font-size:8px;">auto-detected ✓</div>
+        </div>
+        <div style="background:#1e293b;border-radius:7px;padding:10px;border:1px solid #0ea5e9;">
+          <div style="color:#64748b;font-size:9px;margin-bottom:3px;">BUDGET</div>
+          <div style="color:#e2e8f0;font-size:12px;font-weight:600;">₹15,000/mo</div>
+          <div style="color:#0ea5e9;font-size:8px;">auto-detected ✓</div>
+        </div>
+        <div style="background:#1e293b;border-radius:7px;padding:10px;border:1px solid #0ea5e9;">
+          <div style="color:#64748b;font-size:9px;margin-bottom:3px;">TYPE</div>
+          <div style="color:#e2e8f0;font-size:12px;font-weight:600;">1BHK</div>
+          <div style="color:#0ea5e9;font-size:8px;">auto-detected ✓</div>
+        </div>
+        <div style="background:#1e293b;border-radius:7px;padding:10px;border:1px solid #0ea5e9;">
+          <div style="color:#64748b;font-size:9px;margin-bottom:3px;">AREA / LOCALITY</div>
+          <div style="color:#e2e8f0;font-size:12px;font-weight:600;">Hinjewadi</div>
+          <div style="color:#0ea5e9;font-size:8px;">auto-detected ✓</div>
+        </div>
+        <div style="background:#1e293b;border-radius:7px;padding:10px;border:1px solid #0ea5e9;">
+          <div style="color:#64748b;font-size:9px;margin-bottom:3px;">FURNISHING</div>
+          <div style="color:#e2e8f0;font-size:12px;font-weight:600;">Furnished</div>
+          <div style="color:#0ea5e9;font-size:8px;">auto-detected ✓</div>
+        </div>
+        <div style="background:#1e293b;border-radius:7px;padding:10px;border:1px solid #f59e0b;">
+          <div style="color:#64748b;font-size:9px;margin-bottom:3px;">PREFERENCES</div>
+          <div style="color:#e2e8f0;font-size:11px;font-weight:600;">No brokerage</div>
+          <div style="color:#f59e0b;font-size:8px;">confirm? ✎</div>
+        </div>
+      </div>
+
+      <div style="text-align:center;">
+        <div style="background:#0ea5e9;border-radius:8px;padding:10px 28px;color:white;font-size:13px;font-weight:600;display:inline-block;cursor:pointer;">
+          ▶ Start Searching Facebook Groups
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 2 -->
+  <div class="mockup">
+    <div class="mockup-header">Phase 2 — Live Results (after search starts)</div>
+    <div class="mockup-body" style="background:#0f172a;padding:16px;">
+      <div style="display:flex;gap:12px;">
+
+        <!-- Sidebar -->
+        <div style="width:150px;flex-shrink:0;">
+          <div style="background:#1e293b;border-radius:8px;padding:10px;">
+            <div style="color:#0ea5e9;font-size:10px;font-weight:bold;margin-bottom:10px;">🔍 Filters</div>
+
+            <div style="color:#64748b;font-size:8px;margin-bottom:3px;">CITY</div>
+            <div style="background:#334155;border-radius:4px;padding:4px 6px;color:#e2e8f0;font-size:9px;margin-bottom:8px;">Pune ✎</div>
+
+            <div style="color:#64748b;font-size:8px;margin-bottom:3px;">BUDGET</div>
+            <div style="background:#334155;border-radius:4px;padding:4px 6px;color:#e2e8f0;font-size:9px;margin-bottom:8px;">₹15,000 ✎</div>
+
+            <div style="color:#64748b;font-size:8px;margin-bottom:3px;">TYPE</div>
+            <div style="background:#334155;border-radius:4px;padding:4px 6px;color:#e2e8f0;font-size:9px;margin-bottom:8px;">1BHK ✎</div>
+
+            <div style="color:#64748b;font-size:8px;margin-bottom:3px;">AREA</div>
+            <div style="background:#334155;border-radius:4px;padding:4px 6px;color:#e2e8f0;font-size:9px;margin-bottom:10px;">Hinjewadi ✎</div>
+
+            <div style="background:#1e3a5f;border-radius:5px;padding:6px;margin-bottom:6px;">
+              <div style="color:#7dd3fc;font-size:8px;font-weight:bold;margin-bottom:3px;">📡 Agent Status</div>
+              <div style="color:#94a3b8;font-size:7px;margin-bottom:2px;">✓ Found 7 groups</div>
+              <div style="color:#94a3b8;font-size:7px;margin-bottom:2px;">✓ Scraped 3 groups</div>
+              <div style="color:#fbbf24;font-size:7px;">⟳ Scraping group 4/7...</div>
+            </div>
+
+            <div style="background:#334155;border-radius:4px;padding:5px;text-align:center;">
+              <div style="color:#f87171;font-size:8px;cursor:pointer;">✕ Stop Search</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results list -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+          <div style="color:#94a3b8;font-size:9px;margin-bottom:2px;">3 results so far • streaming live...</div>
+
+          <!-- Result card 1 -->
+          <div style="background:#1e293b;border-radius:8px;padding:10px;display:flex;gap:10px;border-left:3px solid #0ea5e9;">
+            <div style="background:#334155;width:70px;height:60px;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:8px;">📷 img</div>
+            <div style="flex:1;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                <div style="color:#e2e8f0;font-size:11px;font-weight:600;">1BHK in Hinjewadi Phase 2</div>
+                <div style="background:#0ea5e9;border-radius:4px;padding:2px 6px;color:white;font-size:9px;font-weight:bold;">95%</div>
+              </div>
+              <div style="color:#22c55e;font-size:10px;margin-bottom:2px;">₹14,500/mo • Furnished</div>
+              <div style="color:#94a3b8;font-size:9px;margin-bottom:4px;">Fully furnished, 10 min from Infosys gate. No brokerage. Available from April.</div>
+              <div style="display:flex;gap:4px;">
+                <div style="background:#334155;border-radius:3px;padding:1px 4px;color:#94a3b8;font-size:7px;">Flat & Flatmates Pune</div>
+                <div style="background:#334155;border-radius:3px;padding:1px 4px;color:#94a3b8;font-size:7px;">2 days ago</div>
+                <div style="background:#0ea5e9;border-radius:3px;padding:1px 5px;color:white;font-size:7px;cursor:pointer;">→ View on Facebook</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Result card 2 -->
+          <div style="background:#1e293b;border-radius:8px;padding:10px;display:flex;gap:10px;border-left:3px solid #22c55e;">
+            <div style="background:#334155;width:70px;height:60px;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:8px;">📷 img</div>
+            <div style="flex:1;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                <div style="color:#e2e8f0;font-size:11px;font-weight:600;">1BHK near Wakad Circle</div>
+                <div style="background:#22c55e;border-radius:4px;padding:2px 6px;color:white;font-size:9px;font-weight:bold;">82%</div>
+              </div>
+              <div style="color:#22c55e;font-size:10px;margin-bottom:2px;">₹13,000/mo • Semi-furnished</div>
+              <div style="color:#94a3b8;font-size:9px;margin-bottom:4px;">Balcony, 24hr water, 5 km from Hinjewadi IT park. Brokerage applicable.</div>
+              <div style="display:flex;gap:4px;">
+                <div style="background:#334155;border-radius:3px;padding:1px 4px;color:#94a3b8;font-size:7px;">Pune Rentals 2024</div>
+                <div style="background:#334155;border-radius:3px;padding:1px 4px;color:#94a3b8;font-size:7px;">5 days ago</div>
+                <div style="background:#0ea5e9;border-radius:3px;padding:1px 5px;color:white;font-size:7px;cursor:pointer;">→ View on Facebook</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Streaming indicator -->
+          <div style="background:#1e293b;border-radius:8px;padding:10px;border:1px dashed #334155;text-align:center;">
+            <div style="color:#64748b;font-size:9px;">⟳ Searching more groups... results will appear here</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

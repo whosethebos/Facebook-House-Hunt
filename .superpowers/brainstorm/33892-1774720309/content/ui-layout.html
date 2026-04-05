@@ -1,0 +1,126 @@
+<h2>UI Layout Options</h2>
+<p class="subtitle">How should the search form and results be arranged?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:12px;min-height:220px;">
+      <div style="background:#1e293b;border-radius:8px;padding:10px;margin-bottom:8px;">
+        <div style="color:#94a3b8;font-size:10px;margin-bottom:6px;font-family:monospace;">FIND YOUR NEXT HOME</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <div style="background:#0ea5e9;border-radius:4px;padding:4px 8px;color:white;font-size:9px;">📍 Pune</div>
+          <div style="background:#334155;border-radius:4px;padding:4px 8px;color:#94a3b8;font-size:9px;">₹ Budget</div>
+          <div style="background:#334155;border-radius:4px;padding:4px 8px;color:#94a3b8;font-size:9px;">🏠 Type</div>
+          <div style="background:#0ea5e9;border-radius:4px;padding:4px 8px;color:white;font-size:9px;">▶ Search</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div style="background:#1e293b;border-radius:6px;padding:8px;">
+          <div style="background:#334155;height:50px;border-radius:4px;margin-bottom:6px;"></div>
+          <div style="color:#e2e8f0;font-size:8px;margin-bottom:3px;">3BHK Baner • ₹18,000</div>
+          <div style="color:#64748b;font-size:7px;">Spacious flat, 2 mins from metro</div>
+          <div style="background:#0ea5e9;border-radius:3px;padding:2px 5px;color:white;font-size:7px;margin-top:4px;display:inline-block;">95% match</div>
+        </div>
+        <div style="background:#1e293b;border-radius:6px;padding:8px;">
+          <div style="background:#334155;height:50px;border-radius:4px;margin-bottom:6px;"></div>
+          <div style="color:#e2e8f0;font-size:8px;margin-bottom:3px;">1BHK Kothrud • ₹12,000</div>
+          <div style="color:#64748b;font-size:7px;">Fully furnished, near IT park</div>
+          <div style="background:#22c55e;border-radius:3px;padding:2px 5px;color:white;font-size:7px;margin-top:4px;display:inline-block;">88% match</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Search Bar on Top, Grid Results</h3>
+      <p>Compact search strip at the top, results fill the page as a grid of cards. Clean, dashboard-style. Good for scanning many listings at once.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:12px;min-height:220px;">
+      <div style="display:flex;gap:8px;height:190px;">
+        <div style="width:110px;background:#1e293b;border-radius:8px;padding:8px;flex-shrink:0;">
+          <div style="color:#0ea5e9;font-size:9px;margin-bottom:8px;font-weight:bold;">🔍 Search</div>
+          <div style="color:#94a3b8;font-size:8px;margin-bottom:3px;">City</div>
+          <div style="background:#334155;border-radius:3px;padding:3px 5px;color:#e2e8f0;font-size:8px;margin-bottom:6px;">Pune</div>
+          <div style="color:#94a3b8;font-size:8px;margin-bottom:3px;">Budget</div>
+          <div style="background:#334155;border-radius:3px;padding:3px 5px;color:#e2e8f0;font-size:8px;margin-bottom:6px;">₹ 0–25k</div>
+          <div style="color:#94a3b8;font-size:8px;margin-bottom:3px;">Type</div>
+          <div style="background:#334155;border-radius:3px;padding:3px 5px;color:#e2e8f0;font-size:8px;margin-bottom:6px;">Any</div>
+          <div style="color:#94a3b8;font-size:8px;margin-bottom:3px;">Preferences</div>
+          <div style="background:#334155;border-radius:3px;padding:3px 5px;color:#64748b;font-size:7px;margin-bottom:8px;">furnished, near metro...</div>
+          <div style="background:#0ea5e9;border-radius:4px;padding:4px;color:white;font-size:8px;text-align:center;">Search</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:5px;overflow:hidden;">
+          <div style="background:#1e293b;border-radius:6px;padding:7px;display:flex;gap:6px;">
+            <div style="background:#334155;width:45px;height:40px;border-radius:4px;flex-shrink:0;"></div>
+            <div style="flex:1;">
+              <div style="color:#e2e8f0;font-size:8px;margin-bottom:2px;">3BHK Baner • ₹18,000/mo</div>
+              <div style="color:#64748b;font-size:7px;margin-bottom:3px;">2 mins from metro, fully furnished</div>
+              <div style="background:#0ea5e9;border-radius:3px;padding:1px 4px;color:white;font-size:7px;display:inline-block;">95%</div>
+            </div>
+          </div>
+          <div style="background:#1e293b;border-radius:6px;padding:7px;display:flex;gap:6px;">
+            <div style="background:#334155;width:45px;height:40px;border-radius:4px;flex-shrink:0;"></div>
+            <div style="flex:1;">
+              <div style="color:#e2e8f0;font-size:8px;margin-bottom:2px;">1BHK Kothrud • ₹12,000/mo</div>
+              <div style="color:#64748b;font-size:7px;margin-bottom:3px;">Near IT park, male preferred</div>
+              <div style="background:#22c55e;border-radius:3px;padding:1px 4px;color:white;font-size:7px;display:inline-block;">88%</div>
+            </div>
+          </div>
+          <div style="background:#1e293b;border-radius:6px;padding:7px;display:flex;gap:6px;">
+            <div style="background:#334155;width:45px;height:40px;border-radius:4px;flex-shrink:0;"></div>
+            <div style="flex:1;">
+              <div style="color:#e2e8f0;font-size:8px;margin-bottom:2px;">Shared Room Wakad • ₹7,000/mo</div>
+              <div style="color:#64748b;font-size:7px;margin-bottom:3px;">3 sharing, AC, meals included</div>
+              <div style="background:#f59e0b;border-radius:3px;padding:1px 4px;color:white;font-size:7px;display:inline-block;">74%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Sidebar Filters + List Results (Recommended)</h3>
+      <p>Persistent filter sidebar on the left, scrollable list of results on the right. Familiar housing-search UX (like NoBroker/Housing.com). Great for refining search without losing context.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:12px;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+      <div style="text-align:center;margin-bottom:12px;">
+        <div style="color:#0ea5e9;font-size:14px;font-weight:bold;margin-bottom:4px;">🏠 House Hunt</div>
+        <div style="color:#94a3b8;font-size:9px;margin-bottom:10px;">Describe what you're looking for</div>
+        <div style="background:#1e293b;border-radius:8px;padding:8px;width:200px;text-align:left;margin:0 auto 8px;">
+          <div style="color:#64748b;font-size:8px;font-style:italic;">"Looking for a furnished 1BHK in Pune near Hinjewadi, budget ₹15k, no brokerage..."</div>
+        </div>
+        <div style="display:flex;gap:4px;justify-content:center;margin-bottom:8px;">
+          <div style="background:#334155;border-radius:3px;padding:2px 5px;color:#94a3b8;font-size:7px;">📍 Pune</div>
+          <div style="background:#334155;border-radius:3px;padding:2px 5px;color:#94a3b8;font-size:7px;">₹15,000</div>
+          <div style="background:#334155;border-radius:3px;padding:2px 5px;color:#94a3b8;font-size:7px;">1BHK</div>
+        </div>
+        <div style="background:#0ea5e9;border-radius:5px;padding:5px 16px;color:white;font-size:9px;display:inline-block;">Start Searching</div>
+      </div>
+      <div style="display:flex;gap:5px;">
+        <div style="background:#1e293b;border-radius:5px;padding:5px;width:55px;text-align:center;">
+          <div style="background:#334155;height:30px;border-radius:3px;margin-bottom:3px;"></div>
+          <div style="color:#e2e8f0;font-size:7px;">3BHK Baner</div>
+          <div style="color:#0ea5e9;font-size:7px;">95%</div>
+        </div>
+        <div style="background:#1e293b;border-radius:5px;padding:5px;width:55px;text-align:center;">
+          <div style="background:#334155;height:30px;border-radius:3px;margin-bottom:3px;"></div>
+          <div style="color:#e2e8f0;font-size:7px;">1BHK Kothrud</div>
+          <div style="color:#22c55e;font-size:7px;">88%</div>
+        </div>
+        <div style="background:#1e293b;border-radius:5px;padding:5px;width:55px;text-align:center;">
+          <div style="background:#334155;height:30px;border-radius:3px;margin-bottom:3px;"></div>
+          <div style="color:#e2e8f0;font-size:7px;">Shared Wakad</div>
+          <div style="color:#f59e0b;font-size:7px;">74%</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Natural Language First, Grid Results</h3>
+      <p>Hero search box where you describe what you want in plain text ("furnished 1BHK near Hinjewadi, ₹15k"). Ollama extracts the criteria. Below it, a grid of matching listings appears after search.</p>
+    </div>
+  </div>
+
+</div>
